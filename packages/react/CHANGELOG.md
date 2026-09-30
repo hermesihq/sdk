@@ -19,7 +19,7 @@ at least one real integration exists.
 Each release lists breaking changes first, because that is the only section that
 decides whether an upgrade is a decision or a formality.
 
-## 0.2.0 (unreleased)
+## 0.2.0 (2026-09-30)
 
 No breaking changes, and nothing to change in your code: everything this package exported
 before it exports now, from the same place.

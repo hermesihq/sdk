@@ -19,7 +19,7 @@ least one real integration exists.
 Each release lists breaking changes first, because that is the only section that decides
 whether an upgrade is a decision or a formality.
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-09-30)
 
 The first release. `HermsClient` and its types were previously only available inside
 `@hermesihq/react`; they and the state behind the React hooks now live here, with no React
