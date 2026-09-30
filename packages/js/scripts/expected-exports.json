@@ -1,0 +1,12 @@
+{
+  "runtime": [
+    "CountsStore",
+    "HERMS_CHANNELS",
+    "HermsApiError",
+    "HermsClient",
+    "HermsSession",
+    "InboxStore",
+    "PreferencesStore",
+    "decodeSubscriberTokenExp"
+  ]
+}

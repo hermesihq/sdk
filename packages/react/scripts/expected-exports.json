@@ -1,0 +1,14 @@
+{
+  "runtime": [
+    "HERMS_CHANNELS",
+    "HermsApiError",
+    "HermsClient",
+    "HermsInbox",
+    "HermsProvider",
+    "decodeSubscriberTokenExp",
+    "useHermsContext",
+    "useInbox",
+    "usePreferences",
+    "useUnreadCount"
+  ]
+}

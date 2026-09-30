@@ -1,0 +1,329 @@
+/*
+ * `<HermsInbox />`'s styles: scoped entirely under `.herms-inbox` and driven
+ * by CSS custom properties, never Tailwind utility classes, so that Tailwind in the
+ * host app cannot bleed into the widget. This
+ * package has no Tailwind dependency at all; a host app's own Tailwind
+ * build never touches these rules, and these rules never leak into the host's
+ * own layout beyond `.herms-inbox`'s own box.
+ *
+ * Every visual value is a `--herms-*` custom property with a sensible
+ * default here, overridable by a host app either globally (setting the
+ * variable higher up the DOM) or per-instance via `<HermsInbox theme={...}>`,
+ * which sets a few of these inline on the root element.
+ *
+ * Dark mode: `data-herms-color-scheme="dark"` on the root element (set by the
+ * `colorScheme` prop) forces dark values; leaving it unset (`colorScheme="auto"`,
+ * the default) follows the visitor's OS-level `prefers-color-scheme` instead.
+ * A host app's own dark-mode mechanism (e.g. a `data-theme`
+ * attribute) is a different, unrelated attribute and never bleeds in here.
+ */
+
+.herms-inbox {
+  --herms-color-accent: #5b5bd6;
+  --herms-color-accent-foreground: #ffffff;
+  --herms-color-bg: #ffffff;
+  --herms-color-surface: #ffffff;
+  --herms-color-border: #e5e3df;
+  --herms-color-text: #1c1b18;
+  --herms-color-muted: #6f6b64;
+  --herms-color-danger: #b03a2a;
+  --herms-color-unread-dot: #b03a2a;
+  --herms-color-hover: #f4f3f1;
+  --herms-radius: 10px;
+  --herms-font-family:
+    -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  position: relative;
+  display: inline-block;
+  font-family: var(--herms-font-family);
+  color: var(--herms-color-text);
+  line-height: 1.4;
+}
+
+@media (prefers-color-scheme: dark) {
+  .herms-inbox:not([data-herms-color-scheme='light']) {
+    --herms-color-bg: #201f1a;
+    --herms-color-surface: #201f1a;
+    --herms-color-border: #38362f;
+    --herms-color-text: #f3f1ec;
+    --herms-color-muted: #a6a19a;
+    --herms-color-hover: #2b2a24;
+  }
+}
+
+.herms-inbox[data-herms-color-scheme='dark'] {
+  --herms-color-bg: #201f1a;
+  --herms-color-surface: #201f1a;
+  --herms-color-border: #38362f;
+  --herms-color-text: #f3f1ec;
+  --herms-color-muted: #a6a19a;
+  --herms-color-hover: #2b2a24;
+}
+
+.herms-inbox * {
+  box-sizing: border-box;
+}
+
+.herms-inbox__trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--herms-color-text);
+  cursor: pointer;
+}
+
+.herms-inbox__trigger:hover {
+  background: var(--herms-color-hover);
+}
+
+.herms-inbox__trigger:focus-visible {
+  outline: 2px solid var(--herms-color-accent);
+  outline-offset: 2px;
+}
+
+.herms-inbox__bell {
+  width: 20px;
+  height: 20px;
+}
+
+.herms-inbox__badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--herms-color-unread-dot);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+}
+
+.herms-inbox__panel {
+  width: 380px;
+  max-width: calc(100vw - 24px);
+  max-height: 480px;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--herms-radius);
+  border: 1px solid var(--herms-color-border);
+  background: var(--herms-color-surface);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.16);
+  overflow: hidden;
+  z-index: 50;
+}
+
+.herms-inbox__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--herms-color-border);
+}
+
+.herms-inbox__title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.herms-inbox__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.herms-inbox__text-button {
+  border: none;
+  background: transparent;
+  color: var(--herms-color-accent);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.herms-inbox__text-button:hover {
+  background: var(--herms-color-hover);
+}
+
+.herms-inbox__text-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.herms-inbox__icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--herms-color-muted);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.herms-inbox__icon-button:hover {
+  background: var(--herms-color-hover);
+  color: var(--herms-color-text);
+}
+
+.herms-inbox__icon-button:focus-visible,
+.herms-inbox__text-button:focus-visible,
+.herms-inbox__item:focus-visible {
+  outline: 2px solid var(--herms-color-accent);
+  outline-offset: -2px;
+}
+
+.herms-inbox__list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+}
+
+.herms-inbox__list-row {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.herms-inbox__item {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.herms-inbox__item:hover {
+  background: var(--herms-color-hover);
+}
+
+.herms-inbox__item[data-unread='true'] .herms-inbox__item-title::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: var(--herms-color-accent);
+}
+
+.herms-inbox__item-title {
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+}
+
+.herms-inbox__item-body {
+  font-size: 12.5px;
+  color: var(--herms-color-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.herms-inbox__item-meta {
+  font-size: 11px;
+  color: var(--herms-color-muted);
+}
+
+.herms-inbox__archive-button {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--herms-color-muted);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.herms-inbox__archive-button:hover {
+  background: var(--herms-color-hover);
+  color: var(--herms-color-danger);
+}
+
+.herms-inbox__state {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--herms-color-muted);
+  font-size: 13px;
+}
+
+.herms-inbox__state-title {
+  color: var(--herms-color-text);
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+
+.herms-inbox__load-more {
+  display: block;
+  width: calc(100% - 8px);
+  margin: 4px;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px dashed var(--herms-color-border);
+  background: transparent;
+  color: var(--herms-color-accent);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.herms-inbox__load-more:hover {
+  background: var(--herms-color-hover);
+}
+
+.herms-inbox__load-more:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.herms-inbox__visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.herms-inbox__skeleton-line {
+  height: 12px;
+  border-radius: 4px;
+  background: var(--herms-color-hover);
+  margin: 6px 10px;
+}

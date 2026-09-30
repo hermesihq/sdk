@@ -1,0 +1,67 @@
+{
+  "name": "@hermesihq/react",
+  "version": "0.2.0",
+  "description": "Embeddable notification inbox for React: hooks over Hermesi's client API, plus a ready bell-and-panel component.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hermesihq/sdk.git",
+    "directory": "packages/react"
+  },
+  "homepage": "https://github.com/hermesihq/sdk/tree/main/packages/react#readme",
+  "bugs": "https://github.com/hermesihq/sdk/issues",
+  "keywords": [
+    "hermesi",
+    "notifications",
+    "inbox",
+    "react"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./styles.css": "./dist/index.css"
+  },
+  "scripts": {
+    "prebuild": "npm run build -w @hermesihq/js",
+    "build": "tsup",
+    "test": "vitest run",
+    "verify:package": "node ../../scripts/verify-package.mjs",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "prepublishOnly": "npm run typecheck && npm run build"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "dependencies": {
+    "@hermesihq/js": "^0.1.0",
+    "@radix-ui/react-popover": "^1.1.23"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

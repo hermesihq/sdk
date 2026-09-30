@@ -1,0 +1,13 @@
+{
+  // Tests only, with node types the published source is not allowed to have.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "paths": { "@hermesihq/js": ["./src/index.ts"] }
+  },
+  // `exclude` is inherited from the parent, which excludes exactly these files, so
+  // without this the config resolved to nothing and reported nothing. Caught by putting a
+  // deliberate type error in a test and watching tsc stay silent.
+  "exclude": [],
+  "include": ["src", "examples", "vitest.config.ts"]
+}

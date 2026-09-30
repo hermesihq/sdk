@@ -1,0 +1,31 @@
+{
+  "name": "hermesi-sdk",
+  "private": true,
+  "description": "Client SDKs for Hermesi: a framework-free core and its React bindings.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hermesihq/sdk.git"
+  },
+  "workspaces": [
+    "packages/js",
+    "packages/react"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "npm run build -w @hermesihq/js && npm run build -w @hermesihq/react",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm test --workspaces",
+    "verify:package": "npm run verify:package --workspaces"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "@vitest/coverage-v8": "^5.0.2",
+    "jsdom": "^29.1.1",
+    "tsup": "^8.5.1",
+    "typescript": "~6.0.2",
+    "vitest": "^5.0.2"
+  }
+}

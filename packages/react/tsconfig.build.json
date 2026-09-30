@@ -1,0 +1,11 @@
+{
+  // What the published build compiles under. Identical to `tsconfig.json` except that
+  // `@hermesihq/js` resolves through `node_modules` to its built `dist`, exactly as it
+  // will for whoever installs this package. Without this the declarations would be
+  // generated against the source and could describe a shape the published js package
+  // does not have.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {}
+  }
+}

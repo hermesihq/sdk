@@ -1,0 +1,47 @@
+{
+  "name": "@hermesihq/js",
+  "version": "0.1.0",
+  "description": "Framework-free client for Hermesi's in-app inbox: an API client and the stores a Vue, Angular, Svelte or plain JavaScript page binds to.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hermesihq/sdk.git",
+    "directory": "packages/js"
+  },
+  "homepage": "https://github.com/hermesihq/sdk/tree/main/packages/js#readme",
+  "bugs": "https://github.com/hermesihq/sdk/issues",
+  "keywords": [
+    "hermesi",
+    "notifications",
+    "inbox",
+    "sdk"
+  ],
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "verify:package": "node ../../scripts/verify-package.mjs",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "prepublishOnly": "npm run typecheck && npm run build"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

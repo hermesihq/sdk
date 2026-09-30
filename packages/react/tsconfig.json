@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    // Development resolves `@hermesihq/js` to its source, so a change there is seen by
+    // these tests and this typecheck immediately, with no build step in between and no
+    // stale `dist`. The build and `verify:package` do the opposite on purpose (see
+    // `tsconfig.build.json`): a consumer gets `dist`, so that is what they exercise.
+    "paths": {
+      "@hermesihq/js": ["../js/src/index.ts"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test/**"]
+}

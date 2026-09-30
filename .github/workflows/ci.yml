@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  packages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      # `npm ci`, not `npm install`: two builds of one commit must resolve the same
+      # dependencies, and the lockfile is what guarantees it.
+      - run: npm ci
+      # Two configs per package: the published source deliberately has no node types (a
+      # browser SDK whose source can reach `node:fs` is one that eventually does), and the
+      # tests get them through `tsconfig.test.json`.
+      - run: npm run typecheck
+      - run: npm test
+      # **The only check that exercises what npm will actually serve.** Everything above
+      # resolves a package through this repository's own module graph, so it proves the
+      # source works and says nothing about the artefact. This builds each package, packs
+      # it, installs the tarball into a throwaway consumer and imports from it under ESM,
+      # CJS and two TypeScript module resolutions. A broken `exports` map installs
+      # silently and fails at the consumer's first import, which is publish day.
+      - run: npm run verify:package

@@ -1,0 +1,6 @@
+# One line-ending convention in the repository, whatever the contributor's machine does.
+# Without this, a Windows checkout writes CRLF into the working tree and a diff shows
+# every line changed.
+* text=auto eol=lf
+*.png binary
+*.svg text

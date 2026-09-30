@@ -1,0 +1,17 @@
+{
+  // Tests only, with node types the published source is not allowed to have.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"],
+    // The examples import this package by its published name, as a reader copying them
+    // would. Repeated in full because `paths` replaces the parent's rather than merging.
+    "paths": {
+      "@hermesihq/react": ["./src/index.ts"],
+      "@hermesihq/js": ["../js/src/index.ts"]
+    }
+  },
+  // `exclude` is inherited from the parent, which excludes exactly these files, so
+  // without this the config resolved to nothing and reported nothing.
+  "exclude": [],
+  "include": ["src", "examples", "vitest.config.ts"]
+}
