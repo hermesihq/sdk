@@ -19,6 +19,17 @@ at least one real integration exists.
 Each release lists breaking changes first, because that is the only section that
 decides whether an upgrade is a decision or a formality.
 
+## 0.2.2 (2026-10-01)
+
+### Fixed
+
+- **Opening the bell before the list had loaded left the focus on the wrong control.** On a slow
+  connection, or for a keyboard user who opens it quickly, there is no notification yet when the
+  panel opens, so the focus went to the first control in the header and stayed there once the
+  notifications arrived. The panel now takes the focus while it waits, and hands it to the first
+  notification when the list arrives, as long as the person has not already moved it somewhere
+  else. When the list is already loaded nothing changes.
+
 ## 0.2.1 (2026-10-01)
 
 ### Fixed

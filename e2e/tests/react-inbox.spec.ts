@@ -156,6 +156,35 @@ test.describe('the panel as a dialog', () => {
     await expect(page.getByRole('menuitem').first()).toBeFocused()
   })
 
+  test('puts the focus on the first notification when the list arrives after the panel opened', async ({ page }) => {
+    // The bell can be opened before the first page of notifications has loaded: on a slow
+    // connection, or by a keyboard user who is quick. Opening decides where focus goes, and
+    // at that moment there is no notification to choose, so focus lands on the first control
+    // in the panel (Close). Nothing moved it afterwards. The earlier case above only passed
+    // when the list happened to win the race, which on a loaded CI machine it did not.
+    await show(page, { scenario: { latencyMs: 2500 } })
+    await open(page)
+    // The setup this case exists for: opened, and nothing to focus yet. Without this a fast
+    // engine could win the race and the case would pass while testing nothing (WebKit did).
+    await expect(page.getByRole('menuitem')).toHaveCount(0)
+    await expect(page.getByRole('menuitem').first()).toBeVisible()
+
+    await expect(page.getByRole('menuitem').first()).toBeFocused()
+  })
+
+  test('does not take the focus back from somewhere the person moved it', async ({ page }) => {
+    // The other side of the rule above: it applies only while focus is still where opening
+    // left it. A person who has already gone elsewhere in the panel is not interrupted.
+    await show(page, { scenario: { latencyMs: 2500 } })
+    await open(page)
+    const close = page.getByRole('button', { name: 'Close' })
+    await close.focus()
+    await expect(page.getByRole('menuitem')).toHaveCount(0)
+    await expect(page.getByRole('menuitem').first()).toBeVisible()
+
+    await expect(close).toBeFocused()
+  })
+
   test('closes on Escape and gives the focus back to the bell', async ({ page }) => {
     await show(page)
     await open(page)
