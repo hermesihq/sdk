@@ -19,6 +19,24 @@ at least one real integration exists.
 Each release lists breaking changes first, because that is the only section that
 decides whether an upgrade is a decision or a formality.
 
+## 0.2.1 (2026-10-01)
+
+### Fixed
+
+- **The panel had no styling.** `<HermsInbox />` renders its panel in a portal under `<body>`, so
+  the panel is not inside the bell's root, and every colour variable was defined only on that
+  root. Measured in a browser on 0.2.0: the panel was transparent, had no border and square
+  corners, and its text stayed black in dark mode. The `theme` and `colorScheme` props put their
+  values on the root, so they could never reach the panel either. The panel now carries the
+  variables, the forced colour scheme and the `theme` values itself, and forcing light mode on a
+  dark system works. If you worked around this with your own CSS on `.herms-inbox__panel`, it may
+  now be redundant.
+- `className` is now applied to the panel as well as to the bell, so one rule themes both.
+- The panel is sized with `box-sizing: border-box`. Its 380px width now includes its border; it
+  used to render at 382px.
+- The dialog has an accessible name, taken from its title. It used to be announced as just
+  "dialog".
+
 ## 0.2.0 (2026-09-30)
 
 No breaking changes, and nothing to change in your code: everything this package exported

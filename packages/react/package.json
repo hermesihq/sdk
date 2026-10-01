@@ -1,6 +1,6 @@
 {
   "name": "@hermesihq/react",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Embeddable notification inbox for React: hooks over Hermesi's client API, plus a ready bell-and-panel component.",
   "type": "module",
   "license": "MIT",

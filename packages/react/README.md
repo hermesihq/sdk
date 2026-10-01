@@ -61,14 +61,16 @@ arrow-key navigation, `Home` and `End`, and `Escape` to close.
 | `theme` | | `{ accent, radius }`, the two most re-themed values |
 | `colorScheme` | `'auto'` | `'auto'` follows the visitor's OS setting; `'light'` or `'dark'` force one |
 | `locale` | `'en'` | `'en'` or `'fr'` |
-| `className` | | Added to the root element |
+| `className` | | Added to the root element **and to the panel**, so one rule themes both |
 
 Everything else is reachable by overriding these CSS custom properties: `--herms-color-accent`,
 `--herms-color-accent-foreground`, `--herms-color-bg`, `--herms-color-border`,
 `--herms-color-danger`, `--herms-color-hover`, `--herms-color-muted`, `--herms-color-surface`,
 `--herms-color-text`, `--herms-color-unread-dot`, `--herms-font-family` and `--herms-radius`.
-The stylesheet is scoped under `.herms-inbox` and uses no Tailwind, so your build cannot bleed
-into the widget or the reverse.
+Set them on a rule that matches the `className` you pass: it is applied to the bell and to the
+panel. The panel is rendered under `<body>`, not inside the bell, so a rule on an ancestor of the
+bell does not reach it. The stylesheet is scoped under `.herms-inbox` and uses no Tailwind, so
+your build cannot bleed into the widget or the reverse.
 
 ## Hooks
 
