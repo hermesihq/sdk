@@ -6,8 +6,8 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "e2e": "node build.mjs && playwright test",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "e2e": "node build.mjs && npm run check && playwright test",
+    "check": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
     "@playwright/test": "~1.61.0",
