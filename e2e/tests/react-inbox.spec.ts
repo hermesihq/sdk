@@ -21,6 +21,8 @@ const ITEMS = [
 
 interface Opened {
   tenant: string
+  /** Lets through a list held by the `holdList` scenario. */
+  release: () => Promise<void>
   requests: () => Promise<string[]>
   streamsOpen: () => Promise<number>
 }
@@ -33,6 +35,7 @@ async function show(page: Page, options: { query?: Record<string, string>; scena
   await page.goto(`/pages/react-inbox.html?${new URLSearchParams({ tenant, ...options.query })}`)
   return {
     tenant,
+    release: async () => void (await page.request.post(`/__release?tenant=${tenant}`)),
     requests: async () => (await page.request.get(`/__requests?tenant=${tenant}`)).json(),
     streamsOpen: async () => ((await (await page.request.get(`/__streams?tenant=${tenant}`)).json()) as { open: number }).open,
   }
@@ -162,11 +165,13 @@ test.describe('the panel as a dialog', () => {
     // at that moment there is no notification to choose, so focus lands on the first control
     // in the panel (Close). Nothing moved it afterwards. The earlier case above only passed
     // when the list happened to win the race, which on a loaded CI machine it did not.
-    await show(page, { scenario: { latencyMs: 2500 } })
+    const inbox = await show(page, { scenario: { holdList: true } })
     await open(page)
-    // The setup this case exists for: opened, and nothing to focus yet. Without this a fast
-    // engine could win the race and the case would pass while testing nothing (WebKit did).
+    // The setup this case exists for: opened, and nothing to focus yet. The list is held by the
+    // mock until released, so no engine can win the race and pass while testing nothing (WebKit
+    // did, with a timer).
     await expect(page.getByRole('menuitem')).toHaveCount(0)
+    await inbox.release()
     await expect(page.getByRole('menuitem').first()).toBeVisible()
 
     await expect(page.getByRole('menuitem').first()).toBeFocused()
@@ -175,11 +180,12 @@ test.describe('the panel as a dialog', () => {
   test('does not take the focus back from somewhere the person moved it', async ({ page }) => {
     // The other side of the rule above: it applies only while focus is still where opening
     // left it. A person who has already gone elsewhere in the panel is not interrupted.
-    await show(page, { scenario: { latencyMs: 2500 } })
+    const inbox = await show(page, { scenario: { holdList: true } })
     await open(page)
     const close = page.getByRole('button', { name: 'Close' })
     await close.focus()
     await expect(page.getByRole('menuitem')).toHaveCount(0)
+    await inbox.release()
     await expect(page.getByRole('menuitem').first()).toBeVisible()
 
     await expect(close).toBeFocused()
