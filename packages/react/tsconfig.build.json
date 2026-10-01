@@ -6,6 +6,6 @@
   // does not have.
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "paths": {}
+    "paths": { "@hermesihq/inbox-ui": ["../inbox-ui/src/index.ts"] }
   }
 }

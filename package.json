@@ -10,6 +10,7 @@
   "workspaces": [
     "packages/js",
     "packages/react",
+    "packages/inbox-ui",
     "e2e"
   ],
   "engines": {

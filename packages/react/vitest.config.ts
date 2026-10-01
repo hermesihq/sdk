@@ -18,7 +18,7 @@ const source = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 export default defineConfig({
   resolve: {
     alias: [
-      { find: '@hermesihq/react/styles.css', replacement: source('./src/HermsInbox.css') },
+      { find: '@hermesihq/react/styles.css', replacement: source('../inbox-ui/src/inbox.css') },
       { find: /^@hermesihq\/react$/, replacement: source('./src/index.ts') },
       { find: /^@hermesihq\/js$/, replacement: source('../js/src/index.ts') },
     ],
