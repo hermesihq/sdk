@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { getHermsInboxStrings, type HermsLocale } from './locale'
+import { getHermsInboxStrings } from './locale'
+import type { HermsLocale } from './types'
 
 /**
  * `<HermsInbox />` carries its own EN/FR strings because it cannot assume the host app

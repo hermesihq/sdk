@@ -69,6 +69,13 @@ function workspacePackages() {
   return found
 }
 
+/** Workspace packages that are never published. Whatever uses one has to bundle it. */
+function privatePackageNames() {
+  return [...workspacePackages()]
+    .filter(([, dir]) => JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).private === true)
+    .map(([name]) => name)
+}
+
 const failures = []
 function check(name, fn) {
   try {
@@ -181,6 +188,28 @@ if (missing.length || undeclared.length) process.exit(1)
     // The two disagree often, and they disagree precisely about `exports` maps, which is
     // the thing these packages use.
     run('npx', ['tsc', '-p', 'tsconfig.node16.json'], consumer)
+  })
+
+  check('depends on no package that is never published', () => {
+    // `@hermesihq/inbox-ui` is private and bundled into this package. If the bundler ever
+    // leaves it as an import, or it creeps into `dependencies`, the install above still
+    // succeeds (npm resolves it inside this workspace) and a consumer's first import fails
+    // with a package that does not exist on the registry.
+    const privates = privatePackageNames().filter((name) => name !== manifest.name)
+    const problems = []
+    const declared = { ...manifest.dependencies, ...manifest.peerDependencies, ...manifest.optionalDependencies }
+    for (const name of privates) if (name in declared) problems.push(`${name} is declared as a dependency`)
+    // A quoted specifier that starts with the name: `from '@x/y'`, `require("@x/y/sub")`. Plain
+    // string search, because a path in a bundler's comment is not an import and a regex for
+    // "an import" is more code than the failure deserves. Source maps are left out for that
+    // reason too: they list the bundled sources by path.
+    for (const file of walkFiles(installed).filter((f) => !f.endsWith('.map'))) {
+      const text = readFileSync(file, 'utf8')
+      for (const name of privates) {
+        if (text.includes(`'${name}`) || text.includes(`"${name}`)) problems.push(`${file.slice(installed.length + 1)} imports ${name}`)
+      }
+    }
+    if (problems.length) throw new Error(problems.join('\n'))
   })
 
   check('ships no internal ticket or section numbers, in any file', () => {

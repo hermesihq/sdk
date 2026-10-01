@@ -9,7 +9,7 @@
  * `locale` is a prop of `<HermsInbox />`.
  */
 
-export type HermsLocale = 'en' | 'fr'
+import type { HermsLocale } from './types'
 
 export interface HermsInboxStrings {
   bellLabel: string

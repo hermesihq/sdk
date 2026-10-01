@@ -17,10 +17,13 @@ import { defineConfig } from 'tsup'
 export default defineConfig({
   entry: ['src/index.ts'],
   format: ['esm', 'cjs'],
-  dts: true,
   sourcemap: true,
   clean: true,
   splitting: false,
   tsconfig: 'tsconfig.build.json',
   external: ['react', 'react-dom', '@hermesihq/js', '@radix-ui/react-popover'],
+  // `@hermesihq/inbox-ui` is a private workspace package and is not listed above, so tsup bundles
+  // it: the code by default, the declarations because `tsconfig.build.json` maps it to its source.
+  // `verify:package` fails if either stops being true, since npm has no such package to install.
+  dts: true,
 })

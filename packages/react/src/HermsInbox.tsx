@@ -4,15 +4,25 @@ import type { HermsInboxItem } from '@hermesihq/js'
 import { useHermsContext } from './HermsProvider'
 import { useInbox } from './useInbox'
 import { useUnreadCount } from './useUnreadCount'
-import { getHermsInboxStrings, type HermsLocale } from './locale'
-import './HermsInbox.css'
+import {
+  activateItem,
+  badgeText,
+  classNames,
+  colorSchemeAttribute,
+  createSeenTracker,
+  getHermsInboxStrings,
+  nextActiveIndex,
+  relativeTime,
+  splitPlacement,
+  themeVariables,
+  type HermsColorScheme,
+  type HermsInboxPlacement,
+  type HermsInboxTheme,
+  type HermsLocale,
+} from '@hermesihq/inbox-ui'
+import '@hermesihq/inbox-ui/inbox.css'
 
-export type HermsInboxPlacement = 'bottom-start' | 'bottom-end' | 'top-start' | 'top-end'
-
-export interface HermsInboxTheme {
-  accent?: string
-  radius?: string
-}
+export type { HermsInboxPlacement, HermsInboxTheme }
 
 export interface HermsInboxProps {
   /** Popover position relative to the bell trigger. Default `bottom-end`. */
@@ -31,16 +41,9 @@ export interface HermsInboxProps {
   theme?: HermsInboxTheme
   /** `'auto'` (default) follows the visitor's OS `prefers-color-scheme`;
    * `'light'`/`'dark'` force one regardless of it. */
-  colorScheme?: 'auto' | 'light' | 'dark'
+  colorScheme?: HermsColorScheme
   locale?: HermsLocale
   className?: string
-}
-
-const placementToSideAlign: Record<HermsInboxPlacement, { side: 'top' | 'bottom'; align: 'start' | 'end' }> = {
-  'bottom-start': { side: 'bottom', align: 'start' },
-  'bottom-end': { side: 'bottom', align: 'end' },
-  'top-start': { side: 'top', align: 'start' },
-  'top-end': { side: 'top', align: 'end' },
 }
 
 function BellIcon() {
@@ -79,20 +82,6 @@ function AlertIcon() {
   )
 }
 
-function relativeTime(iso: string, locale: HermsLocale): string {
-  const then = new Date(iso).getTime()
-  if (Number.isNaN(then)) return ''
-  const diffSeconds = Math.max(0, Math.round((Date.now() - then) / 1000))
-  const formatter = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
-  if (diffSeconds < 60) return formatter.format(0, 'minute')
-  const diffMinutes = Math.round(diffSeconds / 60)
-  if (diffMinutes < 60) return formatter.format(-diffMinutes, 'minute')
-  const diffHours = Math.round(diffMinutes / 60)
-  if (diffHours < 24) return formatter.format(-diffHours, 'hour')
-  const diffDays = Math.round(diffHours / 24)
-  return formatter.format(-diffDays, 'day')
-}
-
 /**
  * `<HermsInbox />`: bell trigger + dropdown panel. Built
  * entirely on the headless `useInbox`/`useUnreadCount` hooks; every state
@@ -110,7 +99,7 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([])
-  const seenIdsRef = useRef<Set<string>>(new Set())
+  const seenRef = useRef(createSeenTracker())
   const strings = getHermsInboxStrings(locale)
   const titleId = useId()
 
@@ -120,9 +109,8 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
   // `loadMore`/live updates while it stays open.
   useEffect(() => {
     if (!open || items.length === 0) return
-    const toMark = items.filter((item) => !seenIdsRef.current.has(item.id)).map((item) => item.id)
+    const toMark = seenRef.current.take(items)
     if (toMark.length === 0) return
-    for (const id of toMark) seenIdsRef.current.add(id)
     void client.markSeen(toMark)
   }, [open, items, client])
 
@@ -137,61 +125,40 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
 
   const handleListKeyDown = useCallback(
     (event: KeyboardEvent<HTMLUListElement>) => {
-      if (items.length === 0) return
-      switch (event.key) {
-        case 'ArrowDown':
-          event.preventDefault()
-          focusItem(Math.min(activeIndex + 1, items.length - 1))
-          break
-        case 'ArrowUp':
-          event.preventDefault()
-          focusItem(Math.max(activeIndex - 1, 0))
-          break
-        case 'Home':
-          event.preventDefault()
-          focusItem(0)
-          break
-        case 'End':
-          event.preventDefault()
-          focusItem(items.length - 1)
-          break
-        default:
-          break
-      }
+      const next = nextActiveIndex(event.key, activeIndex, items.length)
+      if (next === null) return
+      event.preventDefault()
+      focusItem(next)
     },
     [items.length, activeIndex, focusItem],
   )
 
   const handleActivate = useCallback(
     (item: HermsInboxItem) => {
-      if (!item.readAt) void markRead(item.id)
-      if (onItemClick) {
-        onItemClick(item)
-      } else if (item.actionUrl && typeof window !== 'undefined') {
-        window.location.assign(item.actionUrl)
-      }
+      activateItem(item, {
+        markRead,
+        onItemClick,
+        navigate: (url) => {
+          if (typeof window !== 'undefined') window.location.assign(url)
+        },
+      })
     },
     [markRead, onItemClick],
   )
 
-  const rootStyle = useMemo<CSSProperties>(() => {
-    const style: CSSProperties & Record<string, string> = {}
-    if (theme?.accent) style['--herms-color-accent'] = theme.accent
-    if (theme?.radius) style['--herms-radius'] = theme.radius
-    return style
-  }, [theme?.accent, theme?.radius])
+  const rootStyle = useMemo<CSSProperties>(() => themeVariables(theme), [theme?.accent, theme?.radius])
 
-  const { side, align } = placementToSideAlign[placement]
-  const rootClassName = ['herms-inbox', className].filter(Boolean).join(' ')
+  const { side, align } = splitPlacement(placement)
+  const rootClassName = classNames('herms-inbox', className)
   // The panel is rendered by Radix in a portal under <body>, so it is not inside the root
   // above and inherits nothing from it. Whatever the root carries so that the stylesheet can
   // theme it, the panel has to carry as well: the theme's inline variables, the forced colour
   // scheme, and the host's class (so that one rule on `className` themes both).
-  const panelClassName = ['herms-inbox__panel', className].filter(Boolean).join(' ')
-  const colorSchemeAttribute = colorScheme === 'auto' ? undefined : colorScheme
+  const panelClassName = classNames('herms-inbox__panel', className)
+  const colorSchemeValue = colorSchemeAttribute(colorScheme)
 
   return (
-    <div className={rootClassName} style={rootStyle} data-herms-color-scheme={colorSchemeAttribute}>
+    <div className={rootClassName} style={rootStyle} data-herms-color-scheme={colorSchemeValue}>
       <span className="herms-inbox__visually-hidden" role="status" aria-live="polite">
         {unread > 0 ? strings.bellLabelWithUnread(unread) : ''}
       </span>
@@ -206,7 +173,7 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
             <BellIcon />
             {unseen > 0 && (
               <span className="herms-inbox__badge" aria-hidden="true">
-                {unseen > 99 ? '99+' : unseen}
+                {badgeText(unseen)}
               </span>
             )}
           </button>
@@ -215,7 +182,7 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
           <Popover.Content
             className={panelClassName}
             style={rootStyle}
-            data-herms-color-scheme={colorSchemeAttribute}
+            data-herms-color-scheme={colorSchemeValue}
             // The dialog needs a name of its own. Only the list, the bell and the loading
             // state were named; a dialog without one is announced as just "dialog".
             aria-labelledby={titleId}

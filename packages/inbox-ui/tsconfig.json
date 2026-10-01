@@ -1,0 +1,7 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": ["src"],
+  // Same split as the other packages: tests get node types through `tsconfig.test.json`, the
+  // source that ships inside two published bundles does not.
+  "exclude": ["src/**/*.test.ts"]
+}
