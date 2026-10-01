@@ -9,16 +9,18 @@
   },
   "workspaces": [
     "packages/js",
-    "packages/react"
+    "packages/react",
+    "e2e"
   ],
   "engines": {
     "node": ">=20"
   },
   "scripts": {
     "build": "npm run build -w @hermesihq/js && npm run build -w @hermesihq/react",
-    "typecheck": "npm run typecheck --workspaces",
-    "test": "npm test --workspaces",
-    "verify:package": "npm run verify:package --workspaces"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm test --workspaces --if-present",
+    "verify:package": "npm run verify:package --workspaces --if-present",
+    "e2e": "npm run build && npm run e2e -w @hermesihq/e2e"
   },
   "devDependencies": {
     "@types/node": "^26.6.3",

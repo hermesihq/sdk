@@ -1,0 +1,33 @@
+/**
+ * Bundles the test pages with the packages' BUILT output.
+ *
+ * The pages import `@hermesihq/react` by its published name, which resolves through the
+ * workspace to `packages/react/dist`: the artefact, not the source. That is the point. The
+ * source is already covered by unit tests, and the defects worth a real browser (a panel with no
+ * styling, a stylesheet that is not loaded) live in what ships. Run `npm run build` at the root
+ * first; `npm run e2e` there does it for you.
+ */
+import { build } from 'esbuild'
+import { existsSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+
+const root = fileURLToPath(new URL('.', import.meta.url))
+const reactDist = fileURLToPath(new URL('../packages/react/dist/index.js', import.meta.url))
+
+if (!existsSync(reactDist)) {
+  console.error('packages/react/dist is missing. Run `npm run build` at the repository root first.')
+  process.exit(1)
+}
+
+await build({
+  absWorkingDir: root,
+  entryPoints: { 'react-inbox': 'pages/react-inbox.tsx' },
+  outdir: 'dist',
+  bundle: true,
+  format: 'iife',
+  jsx: 'automatic',
+  loader: { '.css': 'css' },
+  define: { 'process.env.NODE_ENV': '"production"' },
+  sourcemap: true,
+  logLevel: 'info',
+})
