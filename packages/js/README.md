@@ -122,7 +122,10 @@ few lines. `@hermesihq/react` is that binding for React.
 Every failed request rejects with a `HermsApiError`, carrying the API's `type`, `code`,
 `message`, `requestId`, `detail` and `docUrl`. Quote `requestId` in a support conversation.
 A response that is not JSON, such as a proxy's error page, arrives as a `HermsApiError` too,
-not as a `TypeError` from inside the SDK.
+not as a `TypeError` from inside the SDK. So does JSON that is not what the call returns: its
+`code` is `unexpected_response` and its `type` is `sdk_error`, which the API never sends, so you can
+tell the SDK refusing a response from the server reporting a failure. The SDK would rather show an
+error than invent a notification out of the wrong answer.
 
 ## Registering a channel
 
