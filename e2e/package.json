@@ -1,0 +1,16 @@
+{
+  "name": "@hermesihq/e2e",
+  "private": true,
+  "version": "0.0.0",
+  "description": "End-to-end tests: the built packages, in real browser engines, against a real HTTP mock of the client API.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "e2e": "node build.mjs && npm run check && playwright test",
+    "check": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@playwright/test": "~1.61.0",
+    "esbuild": "^0.27.0"
+  }
+}

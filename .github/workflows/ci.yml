@@ -32,3 +32,29 @@ jobs:
       # CJS and two TypeScript module resolutions. A broken `exports` map installs
       # silently and fails at the consumer's first import, which is publish day.
       - run: npm run verify:package
+
+  # The packages job proves the source and the artefact; this proves what a person sees. It runs
+  # the built components in Chromium, Firefox and WebKit against a mock of the client API. jsdom
+  # has no layout, no cascade and no real focus model, and two defects shipped through it.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      # Engines are fetched at the version the lockfile pinned, with the system libraries they
+      # need. Not cached: a stale engine is a result that disagrees with a person's browser.
+      - run: npx playwright install --with-deps chromium firefox webkit
+        working-directory: e2e
+      - run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          retention-days: 7

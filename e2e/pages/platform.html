@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>platform probe</title>
+    <style>
+      body { margin: 0; font: 16px system-ui; }
+      #clip { overflow: hidden; width: 200px; height: 60px; border: 1px solid #888; margin: 20px; position: relative; }
+      #tall { height: 2000px; }
+      #outside { margin: 20px; }
+    </style>
+  </head>
+  <body>
+    <div id="clip"><div id="host"></div></div>
+    <button id="outside">outside</button>
+    <div id="tall"></div>
+    <script>
+      // A bell and a popover panel inside a shadow root, as the custom element will build them.
+      const host = document.getElementById('host')
+      const root = host.attachShadow({ mode: 'open' })
+      root.innerHTML = `
+        <button id="bell" popovertarget="panel">bell</button>
+        <div id="panel" popover style="width: 300px; height: 120px; margin: 0; inset: auto; border: 1px solid #333; background: white">
+          <button id="inside">inside</button>
+        </div>`
+      const panel = root.getElementById('panel')
+      panel.addEventListener('toggle', (event) => {
+        if (event.newState === 'open') {
+          const rect = root.getElementById('bell').getBoundingClientRect()
+          panel.style.left = rect.left + 'px'
+          panel.style.top = rect.bottom + 4 + 'px'
+        }
+      })
+    </script>
+  </body>
+</html>
