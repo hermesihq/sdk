@@ -19,6 +19,26 @@ least one real integration exists.
 Each release lists breaking changes first, because that is the only section that decides
 whether an upgrade is a decision or a formality.
 
+## 0.1.1 (2026-10-01)
+
+### Fixed
+
+- **A successful response that is the wrong thing is now an error.** The client used to copy
+  whatever a 2xx carried into the state it handed back. Something that answered
+  `markRead` with `{ "updated": 0 }` (the shape of the read-all call) replaced a real
+  notification with an object whose every field was undefined, and an inbox drew an empty row
+  with only its archive button. Now `listInbox`, `getCounts`, `markRead`, `markAllRead`,
+  `markSeen`, `archive`, `getPreferences` and `updatePreference` reject with a `HermsApiError`
+  whose `code` is `unexpected_response` and whose `type` is `sdk_error`, neither of which the API
+  ever sends, so an SDK-side refusal can be told from a server error. The `status` is the real
+  one, and the message says what was expected. A store leaves its state as it was: a failed
+  mutation rejects, and a failed page sets `error`.
+- Only what the SDK uses is required, never more than the API promises. A notification needs an
+  `id`, a `title` and a `created_at`; a field the API adds later is ignored, not refused.
+- A page that says there are more results but gives no cursor is refused, instead of making the
+  next "load more" fetch the first page again and duplicate every row. A last page with no
+  `next_cursor` is reported as `null`.
+
 ## 0.1.0 (2026-09-30)
 
 The first release. `HermsClient` and its types were previously only available inside

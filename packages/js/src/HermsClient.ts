@@ -93,6 +93,94 @@ interface WireUpdatedCountResponse {
   updated: number
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+/**
+ * What a successful call must have returned for its answer to be used. A 2xx whose JSON is
+ * something else is a failure, not data.
+ *
+ * The SDK reflects the server's decisions and invents none, and it used to break that in one
+ * place: it copied whatever a 2xx carried into the state it hands a UI. Something that answered
+ * `POST /inbox/{id}/read` with `{ "updated": 0 }` (the read-all call's shape) turned a real
+ * notification into an object with every field undefined, and the inbox drew an empty row.
+ *
+ * Only what the SDK *uses* is required, never what the API merely documents: a check stricter
+ * than the SDK's own needs would reject a legitimate response, and a field the server adds
+ * tomorrow must not break every integrator on the day it ships.
+ */
+interface ExpectedShape {
+  /** Said in the error, so the message can be acted on. */
+  description: string
+  matches: (value: unknown) => boolean
+}
+
+function isWireItem(value: unknown): value is WireInboxItem {
+  return isRecord(value) && typeof value.id === 'string' && value.id !== '' && typeof value.title === 'string' && typeof value.created_at === 'string'
+}
+
+const EXPECT_ITEM: ExpectedShape = {
+  description: 'a notification (an object with an id, a title and a created_at)',
+  matches: isWireItem,
+}
+
+const EXPECT_PAGE: ExpectedShape = {
+  description: 'a page of notifications (an object with a data array of notifications and a has_more boolean)',
+  matches: (value) =>
+    isRecord(value) &&
+    Array.isArray(value.data) &&
+    value.data.every(isWireItem) &&
+    typeof value.has_more === 'boolean' &&
+    // More pages with no cursor to fetch them with would make the next request ask for page
+    // one again and duplicate every row.
+    (value.has_more ? typeof value.next_cursor === 'string' : true),
+}
+
+const EXPECT_COUNTS: ExpectedShape = {
+  description: 'the unread and unseen counts (an object with a numeric unread and a numeric unseen)',
+  matches: (value) => isRecord(value) && isCount(value.unread) && isCount(value.unseen),
+}
+
+const EXPECT_UPDATED: ExpectedShape = {
+  description: 'an updated count (an object with a numeric updated)',
+  matches: (value) => isRecord(value) && isCount(value.updated),
+}
+
+const EXPECT_PREFERENCES: ExpectedShape = {
+  description: 'notification preferences (an object with global_channels and categories arrays)',
+  matches: (value) =>
+    isRecord(value) &&
+    Array.isArray(value.global_channels) &&
+    value.global_channels.every(isRecord) &&
+    Array.isArray(value.categories) &&
+    value.categories.every(
+      (category) =>
+        isRecord(category) &&
+        typeof category.category_id === 'string' &&
+        Array.isArray(category.channels) &&
+        category.channels.every(isRecord),
+    ),
+}
+
+/**
+ * The SDK's own failure, in the same type as every other one so a consumer has a single thing to
+ * catch. The status is the real one (this was a 2xx) and the code is the SDK's, not the API's.
+ */
+function unexpectedResponse(status: number, expected: ExpectedShape): HermsApiError {
+  return new HermsApiError(status, {
+    error: {
+      type: 'sdk_error',
+      code: 'unexpected_response',
+      message: `The response to this request is not ${expected.description}, so it was not used.`,
+    },
+  })
+}
+
 function fromWireItem(wire: WireInboxItem): HermsInboxItem {
   return {
     id: wire.id,
@@ -205,7 +293,7 @@ export class HermsClient {
    * actually in the way. The *error* path already handled exactly that case carefully;
    * only the success path did not.
    */
-  private async request<T>(path: string, init: { method?: string; body?: unknown; query?: Record<string, string | string[] | number | undefined>; expectsBody?: boolean } = {}): Promise<T> {
+  private async request<T>(path: string, init: { method?: string; body?: unknown; query?: Record<string, string | string[] | number | undefined>; expectsBody?: boolean; expects?: ExpectedShape } = {}): Promise<T> {
     const token = await this.getFreshToken()
     const qs = init.query ? buildQueryString(init.query) : ''
     const headers: Record<string, string> = {
@@ -248,6 +336,10 @@ export class HermsClient {
     if (expectsBody && parsed === null) {
       throw new HermsApiError(response.status, null)
     }
+    // A body that parses, and is the wrong thing. See `ExpectedShape`.
+    if (init.expects && !init.expects.matches(parsed)) {
+      throw unexpectedResponse(response.status, init.expects)
+    }
     return parsed as T
   }
 
@@ -261,39 +353,40 @@ export class HermsClient {
         read: params.status === undefined ? undefined : params.status === 'read' ? 'true' : 'false',
         category: params.category,
       },
+      expects: EXPECT_PAGE,
     })
     return {
       items: wire.data.map(fromWireItem),
       hasMore: wire.has_more,
-      nextCursor: wire.next_cursor,
+      nextCursor: wire.next_cursor ?? null,
     }
   }
 
   async getCounts(): Promise<HermsInboxCounts> {
-    const wire = await this.request<WireInboxCountsResponse>('/inbox/counts')
+    const wire = await this.request<WireInboxCountsResponse>('/inbox/counts', { expects: EXPECT_COUNTS })
     return { unread: wire.unread, unseen: wire.unseen }
   }
 
   // --- Inbox writes ------------------------------------------------------
 
   async markRead(id: string): Promise<HermsInboxItem> {
-    const wire = await this.request<WireInboxItem>(`/inbox/${encodeURIComponent(id)}/read`, { method: 'POST' })
+    const wire = await this.request<WireInboxItem>(`/inbox/${encodeURIComponent(id)}/read`, { method: 'POST', expects: EXPECT_ITEM })
     return fromWireItem(wire)
   }
 
   async markAllRead(): Promise<{ updated: number }> {
-    const wire = await this.request<WireUpdatedCountResponse>('/inbox/read-all', { method: 'POST' })
+    const wire = await this.request<WireUpdatedCountResponse>('/inbox/read-all', { method: 'POST', expects: EXPECT_UPDATED })
     return { updated: wire.updated }
   }
 
   async markSeen(ids: string[]): Promise<{ updated: number }> {
     if (ids.length === 0) return { updated: 0 }
-    const wire = await this.request<WireUpdatedCountResponse>('/inbox/seen', { method: 'POST', body: { ids } })
+    const wire = await this.request<WireUpdatedCountResponse>('/inbox/seen', { method: 'POST', body: { ids }, expects: EXPECT_UPDATED })
     return { updated: wire.updated }
   }
 
   async archive(id: string): Promise<HermsInboxItem> {
-    const wire = await this.request<WireInboxItem>(`/inbox/${encodeURIComponent(id)}/archive`, { method: 'POST' })
+    const wire = await this.request<WireInboxItem>(`/inbox/${encodeURIComponent(id)}/archive`, { method: 'POST', expects: EXPECT_ITEM })
     return fromWireItem(wire)
   }
 
@@ -329,7 +422,7 @@ export class HermsClient {
    * is `updatePreference({ channel: 'email', enabled: false })`.
    */
   async getPreferences(): Promise<HermsPreferences> {
-    return fromWirePreferences(await this.request<WirePreferencesResponse>('/preferences'))
+    return fromWirePreferences(await this.request<WirePreferencesResponse>('/preferences', { expects: EXPECT_PREFERENCES }))
   }
 
   /**
@@ -350,6 +443,7 @@ export class HermsClient {
         // the same way, and being explicit keeps "global" visible in a request log.
         category_id: update.categoryId ?? null,
       },
+      expects: EXPECT_PREFERENCES,
     })
     return fromWirePreferences(wire)
   }

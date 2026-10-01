@@ -1,6 +1,6 @@
 {
   "name": "@hermesihq/js",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Framework-free client for Hermesi's in-app inbox: an API client and the stores a Vue, Angular, Svelte or plain JavaScript page binds to.",
   "type": "module",
   "license": "MIT",
