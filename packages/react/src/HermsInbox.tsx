@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import * as Popover from '@radix-ui/react-popover'
 import type { HermsInboxItem } from '@hermesihq/js'
 import { useHermsContext } from './HermsProvider'
@@ -112,6 +112,7 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([])
   const seenIdsRef = useRef<Set<string>>(new Set())
   const strings = getHermsInboxStrings(locale)
+  const titleId = useId()
 
   // "Seen" (the bell was opened) is distinct from "read." Marks
   // every currently loaded, not-yet-seen id seen once the panel is open and
@@ -182,9 +183,15 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
 
   const { side, align } = placementToSideAlign[placement]
   const rootClassName = ['herms-inbox', className].filter(Boolean).join(' ')
+  // The panel is rendered by Radix in a portal under <body>, so it is not inside the root
+  // above and inherits nothing from it. Whatever the root carries so that the stylesheet can
+  // theme it, the panel has to carry as well: the theme's inline variables, the forced colour
+  // scheme, and the host's class (so that one rule on `className` themes both).
+  const panelClassName = ['herms-inbox__panel', className].filter(Boolean).join(' ')
+  const colorSchemeAttribute = colorScheme === 'auto' ? undefined : colorScheme
 
   return (
-    <div className={rootClassName} style={rootStyle} data-herms-color-scheme={colorScheme === 'auto' ? undefined : colorScheme}>
+    <div className={rootClassName} style={rootStyle} data-herms-color-scheme={colorSchemeAttribute}>
       <span className="herms-inbox__visually-hidden" role="status" aria-live="polite">
         {unread > 0 ? strings.bellLabelWithUnread(unread) : ''}
       </span>
@@ -206,7 +213,12 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
         </Popover.Trigger>
         <Popover.Portal>
           <Popover.Content
-            className="herms-inbox__panel"
+            className={panelClassName}
+            style={rootStyle}
+            data-herms-color-scheme={colorSchemeAttribute}
+            // The dialog needs a name of its own. Only the list, the bell and the loading
+            // state were named; a dialog without one is announced as just "dialog".
+            aria-labelledby={titleId}
             side={side}
             align={align}
             sideOffset={8}
@@ -221,7 +233,7 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
             }}
           >
             <div className="herms-inbox__header">
-              <p className="herms-inbox__title">{strings.panelTitle}</p>
+              <p className="herms-inbox__title" id={titleId}>{strings.panelTitle}</p>
               <div className="herms-inbox__header-actions">
                 <button type="button" className="herms-inbox__text-button" onClick={() => void markAllRead()} disabled={unread === 0}>
                   {strings.markAllRead}

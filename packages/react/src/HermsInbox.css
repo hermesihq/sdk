@@ -18,7 +18,16 @@
  * attribute) is a different, unrelated attribute and never bleeds in here.
  */
 
-.herms-inbox {
+/*
+ * The bell's root and the panel are NOT parent and child. Radix renders the panel in a portal
+ * under <body>, so nothing the panel needs can be inherited from `.herms-inbox`. Everything the
+ * root declares for its descendants (the variables, the text properties, the colour-scheme
+ * rules, box-sizing) is therefore declared on both, in the same rule, so the two cannot
+ * disagree. Before this the panel was transparent, borderless and square, and `theme` and
+ * `colorScheme` could never reach it.
+ */
+.herms-inbox,
+.herms-inbox__panel {
   --herms-color-accent: #5b5bd6;
   --herms-color-accent-foreground: #ffffff;
   --herms-color-bg: #ffffff;
@@ -33,15 +42,19 @@
   --herms-font-family:
     -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 
-  position: relative;
-  display: inline-block;
   font-family: var(--herms-font-family);
   color: var(--herms-color-text);
   line-height: 1.4;
 }
 
+.herms-inbox {
+  position: relative;
+  display: inline-block;
+}
+
 @media (prefers-color-scheme: dark) {
-  .herms-inbox:not([data-herms-color-scheme='light']) {
+  .herms-inbox:not([data-herms-color-scheme='light']),
+  .herms-inbox__panel:not([data-herms-color-scheme='light']) {
     --herms-color-bg: #201f1a;
     --herms-color-surface: #201f1a;
     --herms-color-border: #38362f;
@@ -51,7 +64,8 @@
   }
 }
 
-.herms-inbox[data-herms-color-scheme='dark'] {
+.herms-inbox[data-herms-color-scheme='dark'],
+.herms-inbox__panel[data-herms-color-scheme='dark'] {
   --herms-color-bg: #201f1a;
   --herms-color-surface: #201f1a;
   --herms-color-border: #38362f;
@@ -60,7 +74,9 @@
   --herms-color-hover: #2b2a24;
 }
 
-.herms-inbox * {
+.herms-inbox *,
+.herms-inbox__panel,
+.herms-inbox__panel * {
   box-sizing: border-box;
 }
 

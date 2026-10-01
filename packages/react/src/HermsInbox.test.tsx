@@ -4,6 +4,8 @@
 // pull `HermsInbox.tsx` in, whose `import './HermsInbox.css'` then fails with TS2882.
 // The tidier fix is one line in `tsconfig.test.json`'s `include`; that file is off
 // limits in this change, so the reference lives here instead.
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import type { ReactNode } from 'react'
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -317,5 +319,97 @@ describe('locale', () => {
     // The interpolated string, not just the static ones: a missed plural form here is
     // the kind of thing that only shows up in the one state nobody screenshots.
     await waitFor(() => expect(bell().getAttribute('aria-label')).toBe('Notifications, 4 non lues'))
+  })
+})
+
+describe('the panel is themed and named like the bell', () => {
+  // Radix renders the panel in a portal under <body>, so it is NOT inside the bell's root.
+  // Everything the stylesheet reads from that root (the theme's variables, the forced colour
+  // scheme, the class a host styles) has to be on the panel as well. The package shipped
+  // without that: the panel was transparent, borderless and square, and `theme` and
+  // `colorScheme` could never reach it. jsdom has no real cascade, so none of the 58 tests
+  // that existed could see it; these assert what the stylesheet needs to be present instead.
+
+  it('is not inside the bell, which is why it has to carry its own theme', async () => {
+    mount({ items: [] })
+    await openPanel()
+
+    // A tripwire with a reason. If this ever becomes true (a portal into the root), the cases
+    // below are no longer needed, and this one failing is the prompt to look at them.
+    expect(screen.getByRole('dialog').closest('.herms-inbox')).toBeNull()
+  })
+
+  it('carries the colour scheme the host forced', async () => {
+    mount({ items: [] }, <HermsInbox colorScheme="dark" />)
+    await openPanel()
+
+    expect(screen.getByRole('dialog').getAttribute('data-herms-color-scheme')).toBe('dark')
+  })
+
+  it('leaves the colour scheme to the operating system when it is auto', async () => {
+    mount({ items: [] })
+    await openPanel()
+
+    expect(screen.getByRole('dialog').hasAttribute('data-herms-color-scheme')).toBe(false)
+  })
+
+  it('carries the theme the host passed', async () => {
+    mount({ items: [] }, <HermsInbox theme={{ accent: '#00aa77', radius: '2px' }} />)
+    await openPanel()
+
+    const panel = screen.getByRole('dialog')
+    expect(panel.style.getPropertyValue('--herms-color-accent')).toBe('#00aa77')
+    expect(panel.style.getPropertyValue('--herms-radius')).toBe('2px')
+  })
+
+  it('carries the host class, so that one rule themes the bell and the panel', async () => {
+    mount({ items: [] }, <HermsInbox className="my-inbox" />)
+    await openPanel()
+
+    expect(screen.getByRole('dialog').classList.contains('my-inbox')).toBe(true)
+    expect(bell().closest('.herms-inbox')?.classList.contains('my-inbox')).toBe(true)
+  })
+
+  it('is a dialog with a name, taken from its own title', async () => {
+    mount({ items: [] })
+    await openPanel()
+
+    const dialog = screen.getByRole('dialog')
+    const labelledBy = dialog.getAttribute('aria-labelledby')
+    // A dialog without a name is announced as just "dialog".
+    expect(labelledBy).toBeTruthy()
+    expect(dialog.querySelector(`[id="${labelledBy}"]`)?.textContent).toBe('Notifications')
+  })
+})
+
+describe('the stylesheet', () => {
+  const css = readFileSync(join(__dirname, 'HermsInbox.css'), 'utf8').replace(/\r\n/g, '\n')
+  // Every `selector { declarations }` pair. Crude on purpose: this file has no nesting beyond
+  // the one `@media` wrapper, and a parser would be more code than the rules it checks.
+  const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((match) => ({
+    selector: (match[1] ?? '').trim(),
+    body: match[2] ?? '',
+  }))
+
+  it('declares the theme on the panel wherever it declares it on the bell', () => {
+    // The static form of the defect, and the only one jsdom can check: a rule that defines the
+    // `--herms-*` variables (the defaults, and both dark-mode rules) must name the panel too,
+    // because the panel inherits nothing from the root.
+    const themeRules = rules.filter((rule) => rule.body.includes('--herms-color-bg:'))
+
+    // Three: the defaults, the automatic dark mode, the forced dark mode. A count of zero would
+    // make the loop below pass over nothing, which is the failure this exists to prevent.
+    expect(themeRules.length).toBeGreaterThanOrEqual(3)
+    for (const rule of themeRules) {
+      expect(rule.selector, `a theme rule that skips the panel: ${rule.selector}`).toContain('.herms-inbox__panel')
+    }
+  })
+
+  it('sizes the panel and everything in it with border-box, like the rest of the widget', () => {
+    const sizing = rules.find((rule) => rule.body.includes('box-sizing: border-box'))
+
+    // Without it the 380px panel was 382px wide once its border was added.
+    expect(sizing?.selector).toContain('.herms-inbox__panel,')
+    expect(sizing?.selector).toContain('.herms-inbox__panel *')
   })
 })
