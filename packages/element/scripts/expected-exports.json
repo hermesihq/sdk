@@ -1,0 +1,6 @@
+{
+  "runtime": [
+    "HermesInboxElement",
+    "defineHermesInbox"
+  ]
+}

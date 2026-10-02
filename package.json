@@ -11,13 +11,14 @@
     "packages/js",
     "packages/react",
     "packages/inbox-ui",
+    "packages/element",
     "e2e"
   ],
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "build": "npm run build -w @hermesihq/js && npm run build -w @hermesihq/react",
+    "build": "npm run build -w @hermesihq/js && npm run build -w @hermesihq/react && npm run build -w @hermesihq/element",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm test --workspaces --if-present",
     "verify:package": "npm run verify:package --workspaces --if-present",

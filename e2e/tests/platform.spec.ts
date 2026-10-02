@@ -55,15 +55,18 @@ test('a click outside closes it', async ({ page }) => {
   expect(await isOpen()).toBe(false)
 })
 
-test('the platform does not return focus to the bell when it closes', async ({ page }) => {
+test('focus after it closes: Firefox restores it to the bell, Chromium and WebKit leave it nowhere', async ({ page, browserName }) => {
   const { bell, isOpen } = await probe(page)
   await bell.click()
   await page.locator('#inside').focus()
   await page.keyboard.press('Escape')
   expect(await isOpen()).toBe(false)
-  // The element has to do this itself, or keyboard users lose their place.
-  const active = await page.evaluate(() => document.getElementById('host')!.shadowRoot!.activeElement?.id ?? document.activeElement?.tagName)
-  expect(active).not.toBe('inside')
+
+  const active = await page.evaluate(() => document.getElementById('host')!.shadowRoot!.activeElement?.id ?? null)
+  // The engines disagree, which is why the element returns the focus itself rather than relying
+  // on it: where the platform already does, the element's call is a harmless repeat.
+  if (browserName === 'firefox') expect(active).toBe('bell')
+  else expect(active).toBeNull()
 })
 
 test('the platform does not move it when the page scrolls', async ({ page }) => {

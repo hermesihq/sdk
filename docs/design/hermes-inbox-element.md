@@ -1,6 +1,8 @@
 # `<hermes-inbox>`: design
 
-**Status: proposal, for review. Nothing here is implemented.**
+**Status: steps 0 to 3 are implemented; step 4 (the `<script>`-tag bundle, size budget and publish)
+is not. Sections 1 to 9 are the design as proposed; the corrections that came from building it are
+collected in section 10.**
 
 A custom element that gives any page the bell and panel that `@hermesihq/react` gives a React
 app: plain HTML, a server-rendered template, WordPress, Vue, Angular, Svelte.
@@ -256,3 +258,33 @@ against deliberately broken code before it is trusted.
 * iOS Safari, and touch input generally.
 * Whether `role="menu"` is right (D7).
 * The byte budget, until there is a first build to measure.
+
+## 10. What building it changed
+
+Things this note said, or assumed, that turned out different. The design above is left as written so
+the reasoning can be read; this is the list of where it was wrong.
+
+* **Variables inherit across the boundary (D3) only after a fix.** The shared stylesheet declared
+  every `--herms-*` default on the bell and the panel themselves, and a declaration on an element
+  beats an inherited value, so setting a variable on `:root` or an ancestor did nothing, in React
+  as well. The public variables are now inputs read with their default as fallback into private
+  `--_herms-*` copies. Released as `@hermesihq/react` 0.2.3.
+* **No `theme` property.** Section 4 does not list one, and the element has none: a host sets the
+  variables on the element. The React `theme` and `className` props have no counterpart; the parity
+  test names both as intentional differences.
+* **`composed` is moot on the events.** They are dispatched on the host element, which is in the
+  page's tree. They bubble; that is all a page needs.
+* **Focus return differs by engine.** Section 2 measured Chromium: the platform does not return
+  focus. Measured in all three: Firefox does (to the bell), Chromium and WebKit leave it nowhere.
+  The element returns it itself in every engine, which is a harmless repeat in Firefox.
+* **Firefox and WebKit are no blocker.** Everything in section 2 held in both: the top layer, Escape,
+  a click outside, and the three things the platform does not do (focus return in two of three,
+  following a scroll, closing when focus leaves).
+* **The parity check is by test title** (`parity.test.ts`), with intentional differences named in
+  the file. The browser-level parity is stronger: `inbox.spec.ts` in the end-to-end suite is written
+  once and runs against both implementations in all three engines.
+* **A bug in the React component surfaced and was fixed on the way:** opened before the first page
+  had loaded, the focus stayed on the Close button when the list arrived (0.2.2). The element has
+  the same rule.
+* **Forced-colors rules live in `element.css` only.** React does not have them yet; moving them into
+  the shared stylesheet is the follow-up. Neither has been checked in a real high-contrast setup.
