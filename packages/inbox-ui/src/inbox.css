@@ -8,8 +8,8 @@
  *
  * Every visual value is a `--herms-*` custom property with a sensible
  * default here, overridable by a host app either globally (setting the
- * variable higher up the DOM) or per-instance via `<HermsInbox theme={...}>`,
- * which sets a few of these inline on the root element.
+ * variable higher up the DOM, on `:root` or on any ancestor) or per-instance via
+ * `<HermsInbox theme={...}>`, which sets a few of these inline on the root element.
  *
  * Dark mode: `data-herms-color-scheme="dark"` on the root element (set by the
  * `colorScheme` prop) forces dark values; leaving it unset (`colorScheme="auto"`,
@@ -28,22 +28,28 @@
  */
 .herms-inbox,
 .herms-inbox__panel {
-  --herms-color-accent: #5b5bd6;
-  --herms-color-accent-foreground: #ffffff;
-  --herms-color-bg: #ffffff;
-  --herms-color-surface: #ffffff;
-  --herms-color-border: #e5e3df;
-  --herms-color-text: #1c1b18;
-  --herms-color-muted: #6f6b64;
-  --herms-color-danger: #b03a2a;
-  --herms-color-unread-dot: #b03a2a;
-  --herms-color-hover: #f4f3f1;
-  --herms-radius: 10px;
-  --herms-font-family:
-    -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  /*
+   * The public variables (`--herms-color-*`, `--herms-radius`, `--herms-font-family`) are INPUTS,
+   * never declared here. Each is read with its default as the fallback and kept in a private
+   * `--_herms-*` copy that the rules below use. Declaring the public name on this element would
+   * beat anything a host sets higher up the DOM (a declaration on the element wins over an
+   * inherited value), which is how "set it on an ancestor" silently did nothing.
+   */
+  --_herms-accent: var(--herms-color-accent, #5b5bd6);
+  --_herms-accent-foreground: var(--herms-color-accent-foreground, #ffffff);
+  --_herms-bg: var(--herms-color-bg, #ffffff);
+  --_herms-surface: var(--herms-color-surface, #ffffff);
+  --_herms-border: var(--herms-color-border, #e5e3df);
+  --_herms-text: var(--herms-color-text, #1c1b18);
+  --_herms-muted: var(--herms-color-muted, #6f6b64);
+  --_herms-danger: var(--herms-color-danger, #b03a2a);
+  --_herms-unread-dot: var(--herms-color-unread-dot, #b03a2a);
+  --_herms-hover: var(--herms-color-hover, #f4f3f1);
+  --_herms-radius: var(--herms-radius, 10px);
+  --_herms-font: var(--herms-font-family, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif);
 
-  font-family: var(--herms-font-family);
-  color: var(--herms-color-text);
+  font-family: var(--_herms-font);
+  color: var(--_herms-text);
   line-height: 1.4;
 }
 
@@ -55,23 +61,23 @@
 @media (prefers-color-scheme: dark) {
   .herms-inbox:not([data-herms-color-scheme='light']),
   .herms-inbox__panel:not([data-herms-color-scheme='light']) {
-    --herms-color-bg: #201f1a;
-    --herms-color-surface: #201f1a;
-    --herms-color-border: #38362f;
-    --herms-color-text: #f3f1ec;
-    --herms-color-muted: #a6a19a;
-    --herms-color-hover: #2b2a24;
+    --_herms-bg: var(--herms-color-bg, #201f1a);
+    --_herms-surface: var(--herms-color-surface, #201f1a);
+    --_herms-border: var(--herms-color-border, #38362f);
+    --_herms-text: var(--herms-color-text, #f3f1ec);
+    --_herms-muted: var(--herms-color-muted, #a6a19a);
+    --_herms-hover: var(--herms-color-hover, #2b2a24);
   }
 }
 
 .herms-inbox[data-herms-color-scheme='dark'],
 .herms-inbox__panel[data-herms-color-scheme='dark'] {
-  --herms-color-bg: #201f1a;
-  --herms-color-surface: #201f1a;
-  --herms-color-border: #38362f;
-  --herms-color-text: #f3f1ec;
-  --herms-color-muted: #a6a19a;
-  --herms-color-hover: #2b2a24;
+  --_herms-bg: var(--herms-color-bg, #201f1a);
+  --_herms-surface: var(--herms-color-surface, #201f1a);
+  --_herms-border: var(--herms-color-border, #38362f);
+  --_herms-text: var(--herms-color-text, #f3f1ec);
+  --_herms-muted: var(--herms-color-muted, #a6a19a);
+  --_herms-hover: var(--herms-color-hover, #2b2a24);
 }
 
 .herms-inbox *,
@@ -90,16 +96,16 @@
   border-radius: 999px;
   border: none;
   background: transparent;
-  color: var(--herms-color-text);
+  color: var(--_herms-text);
   cursor: pointer;
 }
 
 .herms-inbox__trigger:hover {
-  background: var(--herms-color-hover);
+  background: var(--_herms-hover);
 }
 
 .herms-inbox__trigger:focus-visible {
-  outline: 2px solid var(--herms-color-accent);
+  outline: 2px solid var(--_herms-accent);
   outline-offset: 2px;
 }
 
@@ -116,7 +122,7 @@
   height: 16px;
   padding: 0 4px;
   border-radius: 999px;
-  background: var(--herms-color-unread-dot);
+  background: var(--_herms-unread-dot);
   color: #ffffff;
   font-size: 10px;
   font-weight: 600;
@@ -130,9 +136,9 @@
   max-height: 480px;
   display: flex;
   flex-direction: column;
-  border-radius: var(--herms-radius);
-  border: 1px solid var(--herms-color-border);
-  background: var(--herms-color-surface);
+  border-radius: var(--_herms-radius);
+  border: 1px solid var(--_herms-border);
+  background: var(--_herms-surface);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.16);
   overflow: hidden;
   z-index: 50;
@@ -144,7 +150,7 @@
   justify-content: space-between;
   gap: 8px;
   padding: 12px 14px;
-  border-bottom: 1px solid var(--herms-color-border);
+  border-bottom: 1px solid var(--_herms-border);
 }
 
 .herms-inbox__title {
@@ -162,7 +168,7 @@
 .herms-inbox__text-button {
   border: none;
   background: transparent;
-  color: var(--herms-color-accent);
+  color: var(--_herms-accent);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -171,7 +177,7 @@
 }
 
 .herms-inbox__text-button:hover {
-  background: var(--herms-color-hover);
+  background: var(--_herms-hover);
 }
 
 .herms-inbox__text-button:disabled {
@@ -187,20 +193,20 @@
   height: 26px;
   border: none;
   background: transparent;
-  color: var(--herms-color-muted);
+  color: var(--_herms-muted);
   border-radius: 6px;
   cursor: pointer;
 }
 
 .herms-inbox__icon-button:hover {
-  background: var(--herms-color-hover);
-  color: var(--herms-color-text);
+  background: var(--_herms-hover);
+  color: var(--_herms-text);
 }
 
 .herms-inbox__icon-button:focus-visible,
 .herms-inbox__text-button:focus-visible,
 .herms-inbox__item:focus-visible {
-  outline: 2px solid var(--herms-color-accent);
+  outline: 2px solid var(--_herms-accent);
   outline-offset: -2px;
 }
 
@@ -234,7 +240,7 @@
 }
 
 .herms-inbox__item:hover {
-  background: var(--herms-color-hover);
+  background: var(--_herms-hover);
 }
 
 .herms-inbox__item[data-unread='true'] .herms-inbox__item-title::before {
@@ -244,7 +250,7 @@
   height: 6px;
   margin-right: 6px;
   border-radius: 999px;
-  background: var(--herms-color-accent);
+  background: var(--_herms-accent);
 }
 
 .herms-inbox__item-title {
@@ -256,7 +262,7 @@
 
 .herms-inbox__item-body {
   font-size: 12.5px;
-  color: var(--herms-color-muted);
+  color: var(--_herms-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
@@ -266,7 +272,7 @@
 
 .herms-inbox__item-meta {
   font-size: 11px;
-  color: var(--herms-color-muted);
+  color: var(--_herms-muted);
 }
 
 .herms-inbox__archive-button {
@@ -279,25 +285,25 @@
   justify-content: center;
   border: none;
   background: transparent;
-  color: var(--herms-color-muted);
+  color: var(--_herms-muted);
   border-radius: 6px;
   cursor: pointer;
 }
 
 .herms-inbox__archive-button:hover {
-  background: var(--herms-color-hover);
-  color: var(--herms-color-danger);
+  background: var(--_herms-hover);
+  color: var(--_herms-danger);
 }
 
 .herms-inbox__state {
   padding: 32px 16px;
   text-align: center;
-  color: var(--herms-color-muted);
+  color: var(--_herms-muted);
   font-size: 13px;
 }
 
 .herms-inbox__state-title {
-  color: var(--herms-color-text);
+  color: var(--_herms-text);
   font-weight: 600;
   margin: 0 0 6px;
 }
@@ -308,16 +314,16 @@
   margin: 4px;
   padding: 8px;
   border-radius: 8px;
-  border: 1px dashed var(--herms-color-border);
+  border: 1px dashed var(--_herms-border);
   background: transparent;
-  color: var(--herms-color-accent);
+  color: var(--_herms-accent);
   font-size: 12.5px;
   font-weight: 500;
   cursor: pointer;
 }
 
 .herms-inbox__load-more:hover {
-  background: var(--herms-color-hover);
+  background: var(--_herms-hover);
 }
 
 .herms-inbox__load-more:disabled {
@@ -340,6 +346,6 @@
 .herms-inbox__skeleton-line {
   height: 12px;
   border-radius: 4px;
-  background: var(--herms-color-hover);
+  background: var(--_herms-hover);
   margin: 6px 10px;
 }
