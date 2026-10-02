@@ -12,6 +12,7 @@ import '@hermesihq/react/styles.css'
  *   placement, locale
  *   clip=1      wrap it in an ancestor that clips and is transformed
  *   tall=1      make the page scrollable
+ *   vars        CSS declarations to put on <html>, the way a host themes it from a stylesheet
  */
 const params = new URLSearchParams(location.search)
 const tenant = params.get('tenant')
@@ -21,6 +22,8 @@ if (params.get('clip') === '1') {
   const clip = document.getElementById('clip')!
   Object.assign(clip.style, { overflow: 'hidden', transform: 'translateZ(0)', width: '120px', height: '48px', border: '2px solid red' })
 }
+const vars = params.get('vars')
+if (vars) document.documentElement.setAttribute('style', vars)
 if (params.get('tall') === '1') document.getElementById('filler')!.style.height = '2400px'
 
 const client = new HermsClient({

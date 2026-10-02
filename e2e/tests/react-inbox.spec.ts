@@ -135,6 +135,17 @@ test.describe('the panel is styled', () => {
     expect(await drawn(panel(page))).toMatchObject({ accent: '#00aa77', radius: '4px' })
   })
 
+  test('and a variable set on an ancestor reaches it, as the stylesheet says it can', async ({ page }) => {
+    // The stylesheet documents setting a `--herms-*` variable "higher up the DOM". It could not
+    // work: the bell and the panel each re-declared every default on themselves, and a
+    // declaration on the element beats anything inherited. A host could only win with a rule
+    // that targets `.herms-inbox` itself.
+    await show(page, { query: { vars: '--herms-color-surface: rgb(1, 2, 3); --herms-radius: 3px; --herms-color-accent: rgb(4, 5, 6)' } })
+    await open(page)
+
+    expect(await drawn(panel(page))).toMatchObject({ background: 'rgb(1, 2, 3)', radius: '3px', accent: 'rgb(4, 5, 6)' })
+  })
+
   test('and the host class reaches it, so one rule themes the bell and the panel', async ({ page }) => {
     await show(page, { query: { className: 'my-inbox' } })
     await open(page)

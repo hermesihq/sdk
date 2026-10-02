@@ -21,7 +21,7 @@ describe('the stylesheet', () => {
     // The static form of the defect, and the only one jsdom can check: a rule that defines the
     // `--herms-*` variables (the defaults, and both dark-mode rules) must name the panel too,
     // because the panel inherits nothing from the root.
-    const themeRules = rules.filter((rule) => rule.body.includes('--herms-color-bg:'))
+    const themeRules = rules.filter((rule) => rule.body.includes('--_herms-bg:'))
 
     // Three: the defaults, the automatic dark mode, the forced dark mode. A count of zero would
     // make the loop below pass over nothing, which is the failure this exists to prevent.
@@ -29,6 +29,14 @@ describe('the stylesheet', () => {
     for (const rule of themeRules) {
       expect(rule.selector, `a theme rule that skips the panel: ${rule.selector}`).toContain('.herms-inbox__panel')
     }
+  })
+
+  it('never declares a public variable, so that a host can set one anywhere above it', () => {
+    // `--herms-*` are inputs. A rule here that declared one would beat whatever the host set on
+    // an ancestor (a declaration on the element wins over an inherited value), and the documented
+    // way to theme the widget would stop working without a test noticing.
+    const declared = rules.flatMap((rule) => [...rule.body.matchAll(/(--herms-[a-z-]+)\s*:/g)].map((match) => match[1]))
+    expect(declared).toEqual([])
   })
 
   it('sizes the panel and everything in it with border-box, like the rest of the widget', () => {

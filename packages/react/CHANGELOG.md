@@ -19,6 +19,18 @@ at least one real integration exists.
 Each release lists breaking changes first, because that is the only section that
 decides whether an upgrade is a decision or a formality.
 
+## 0.2.3 (2026-10-02)
+
+### Fixed
+
+- **Setting a `--herms-*` variable on an ancestor did nothing.** The stylesheet has always said the
+  colours, radius and font can be overridden "higher up the DOM", for example on `:root`. They
+  could not: the bell and the panel each declared every default on themselves, and a declaration
+  on an element beats a value inherited from above it. Only a rule that targeted `.herms-inbox`
+  itself could win. The variables are now inputs that are read, with their default as the
+  fallback, and never declared. A `:root { --herms-color-accent: ... }` now works, and the
+  `theme` prop, a `className` rule and the dark mode behave as before.
+
 ## 0.2.2 (2026-10-01)
 
 ### Fixed
