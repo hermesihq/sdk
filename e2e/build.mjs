@@ -8,7 +8,7 @@
  * first; `npm run e2e` there does it for you.
  */
 import { build } from 'esbuild'
-import { existsSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('.', import.meta.url))
@@ -23,6 +23,15 @@ for (const dist of dists) {
     process.exit(1)
   }
 }
+
+// The `<script>`-tag build is served as the file it is: copied, not bundled again.
+const script = fileURLToPath(new URL('../packages/element/dist/hermes-inbox.global.js', import.meta.url))
+if (!existsSync(script)) {
+  console.error(`${script} is missing. Run \`npm run build\` at the repository root first.`)
+  process.exit(1)
+}
+mkdirSync(`${root}dist`, { recursive: true })
+copyFileSync(script, `${root}dist/hermes-inbox.global.js`)
 
 await build({
   absWorkingDir: root,

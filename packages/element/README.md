@@ -25,6 +25,27 @@ The base URL is the client API, not the host root: every request is this string 
 
 ## Quick start
 
+With no bundler, one `<script>` tag. The file is self-contained (about 37 KB, 12 KB gzipped, with
+`@hermesihq/js` and the styles inside) and registers `<hermes-inbox>` when it runs. Pin a version
+in production.
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@hermesihq/element@0.1/dist/hermes-inbox.global.js"></script>
+<hermes-inbox public-key="hm_pk_prod_..." api-base-url="https://your-hermesi-host/v1/client"></hermes-inbox>
+
+<script>
+  document.querySelector('hermes-inbox').getSubscriberToken = () =>
+    fetch('/api/hermesi-token').then((response) => response.text()) // calls *your* backend
+</script>
+```
+
+Where the script sits does not matter: a tag already in the page is upgraded when the script runs,
+including one whose `getSubscriberToken` was set before it did. The same file is
+`@hermesihq/element/hermes-inbox.global.js` for anything that resolves package paths. It also
+exposes `HermesInbox.defineHermesInbox('your-tag')` if you want the element under another name.
+
+With a bundler, import it instead:
+
 ```html
 <hermes-inbox public-key="hm_pk_prod_..." api-base-url="https://your-hermesi-host/v1/client"></hermes-inbox>
 

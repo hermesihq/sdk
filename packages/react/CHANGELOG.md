@@ -31,7 +31,7 @@ decides whether an upgrade is a decision or a formality.
   fallback, and never declared. A `:root { --herms-color-accent: ... }` now works, and the
   `theme` prop, a `className` rule and the dark mode behave as before.
 
-## 0.2.2 (2026-10-01)
+## 0.2.2 (2026-10-01, never published; its fix is in 0.2.3)
 
 ### Fixed
 

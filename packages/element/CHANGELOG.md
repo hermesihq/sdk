@@ -14,7 +14,7 @@ CSS variables listed in the README are the public API.
 Each release lists breaking changes first, because that is the only section that
 decides whether an upgrade is a decision or a formality.
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-10-02)
 
 First release. `<hermes-inbox>`: the bell and panel of `@hermesihq/react`'s `<HermsInbox />`,
 as a custom element for any page.
@@ -29,5 +29,9 @@ as a custom element for any page.
 - Themed with the `--herms-*` CSS variables on the element or any ancestor, and `::part`
   (`trigger`, `badge`, `panel`, `item`). Follows the system colour scheme, or is forced with
   `color-scheme`.
+- A `<script>`-tag build, `dist/hermes-inbox.global.js` (also `@hermesihq/element/hermes-inbox.global.js`):
+  one minified classic script with `@hermesihq/js` and the styles inside, about 37 KB and 12 KB
+  gzipped, that registers `<hermes-inbox>` when it runs and exposes
+  `HermesInbox.defineHermesInbox`. Its size is held to a budget on every build.
 - Needs the Popover API (Chrome 114, Firefox 125, Safari 17). Where it is missing the element
   draws nothing and `HermesInboxElement.isSupported` is `false`.
