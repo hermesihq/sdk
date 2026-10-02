@@ -100,6 +100,11 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
   const [activeIndex, setActiveIndex] = useState(0)
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([])
   const seenRef = useRef(createSeenTracker())
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  // Set when the panel opened before there was a notification to focus. Opening has to put
+  // focus somewhere at once, so it waits on the panel itself; this remembers that it is
+  // waiting, so that the first notification can have it when the list arrives.
+  const awaitingList = useRef(false)
   const strings = getHermsInboxStrings(locale)
   const titleId = useId()
 
@@ -117,6 +122,18 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
   useEffect(() => {
     if (open) setActiveIndex(0)
   }, [open])
+
+  useEffect(() => {
+    if (!open) {
+      awaitingList.current = false
+      return
+    }
+    if (!awaitingList.current || isLoading) return
+    awaitingList.current = false
+    // Only if focus is still where opening left it. A person who has already moved on, to
+    // Close or to the bell's other controls, is not interrupted by a list arriving.
+    if (items.length > 0 && document.activeElement === panelRef.current) itemRefs.current[0]?.focus()
+  }, [open, isLoading, items.length])
 
   const focusItem = useCallback((index: number) => {
     setActiveIndex(index)
@@ -180,6 +197,8 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
         </Popover.Trigger>
         <Popover.Portal>
           <Popover.Content
+            ref={panelRef}
+            tabIndex={-1}
             className={panelClassName}
             style={rootStyle}
             data-herms-color-scheme={colorSchemeValue}
@@ -196,6 +215,13 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
               if (items.length > 0) {
                 event.preventDefault()
                 itemRefs.current[0]?.focus()
+              } else if (isLoading) {
+                // Nothing to focus yet. Radix would pick the first control in the header and
+                // nothing would ever move it; wait on the panel, and the effect above moves
+                // focus to the first notification when there is one.
+                event.preventDefault()
+                awaitingList.current = true
+                panelRef.current?.focus()
               }
             }}
           >

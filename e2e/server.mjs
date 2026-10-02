@@ -44,6 +44,8 @@ const tenants = new Map()
  *   faultyRead: boolean,
  *   latencyMs: number,
  *   failNext: number,
+ *   holdList: boolean,
+ *   held: Array<() => void>,
  *   nextId: number,
  * }} Tenant
  */
@@ -51,7 +53,7 @@ const tenants = new Map()
 function tenantFor(id) {
   let tenant = tenants.get(id)
   if (!tenant) {
-    tenant = { items: [], requests: [], streams: new Set(), faultyRead: false, latencyMs: 0, failNext: 0, nextId: 1 }
+    tenant = { items: [], requests: [], streams: new Set(), faultyRead: false, latencyMs: 0, failNext: 0, holdList: false, held: [], nextId: 1 }
     tenants.set(id, tenant)
   }
   return tenant
@@ -134,6 +136,9 @@ async function clientApi(req, res, url, tenant) {
 
   if (req.method === 'GET' && route === '/inbox/counts') return send(res, 200, counts(tenant)), true
   if (req.method === 'GET' && route === '/inbox') {
+    // Held until the test says so: a list that arrives exactly when the test wants it to, not
+    // after a time the machine may or may not have been quick enough to beat.
+    if (tenant.holdList) await new Promise((release) => tenant.held.push(release))
     send(res, 200, { data: tenant.items, has_more: false, next_cursor: null })
     return true
   }
@@ -192,7 +197,14 @@ async function control(req, res, url) {
     tenant.faultyRead = Boolean(scenario.faultyRead)
     tenant.latencyMs = Number(scenario.latencyMs ?? 0)
     tenant.failNext = Number(scenario.failNext ?? 0)
+    tenant.holdList = Boolean(scenario.holdList)
+    for (const release of tenant.held.splice(0)) release()
     return send(res, 200, { items: tenant.items.length }), true
+  }
+  if (url.pathname === '/__release') {
+    tenant.holdList = false
+    for (const release of tenant.held.splice(0)) release()
+    return send(res, 200, { ok: true }), true
   }
   if (url.pathname === '/__requests') return send(res, 200, tenant.requests), true
   if (url.pathname === '/__streams') return send(res, 200, { open: tenant.streams.size }), true

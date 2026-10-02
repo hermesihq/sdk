@@ -38,6 +38,10 @@ jobs:
   # has no layout, no cascade and no real focus model, and two defects shipped through it.
   e2e:
     runs-on: ubuntu-latest
+    # Two runs once sat for 25 minutes in the engine download with nothing to show for it, and a
+    # job that waits forever looks like a job that is still running. The suite takes about three
+    # minutes; this is for the day the network does not.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
