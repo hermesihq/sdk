@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Development resolves `@hermesihq/js` to its source, so a change there is seen by these
+    // tests and this typecheck with no build step between. The build does the opposite on
+    // purpose (see `tsconfig.build.json`): a consumer gets `dist`.
+    "paths": {
+      "@hermesihq/js": ["../js/src/index.ts"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/test/**"]
+}
