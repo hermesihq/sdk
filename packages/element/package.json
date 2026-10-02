@@ -28,16 +28,19 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "unpkg": "./dist/hermes-inbox.global.js",
+  "jsdelivr": "./dist/hermes-inbox.global.js",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
-    }
+    },
+    "./hermes-inbox.global.js": "./dist/hermes-inbox.global.js"
   },
   "scripts": {
     "prebuild": "npm run build -w @hermesihq/js",
-    "build": "tsup",
+    "build": "node scripts/clean.mjs && tsup",
     "test": "vitest run",
     "verify:package": "node ../../scripts/verify-package.mjs",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",

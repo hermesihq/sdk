@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>e2e: script tag</title>
+  </head>
+  <body style="margin: 24px; font-family: sans-serif">
+    <!--
+      How the README says to use it, in the order a page written by hand would: the tag in the
+      markup and its configuration set from an inline script, all BEFORE the script that defines
+      the element has run. The element is upgraded in place afterwards.
+    -->
+    <hermes-inbox id="inbox"></hermes-inbox>
+    <script>
+      var tenant = new URLSearchParams(location.search).get('tenant')
+      var inbox = document.getElementById('inbox')
+      inbox.setAttribute('public-key', 'hm_pk_e2e')
+      inbox.setAttribute('api-base-url', location.origin + '/t/' + tenant + '/v1/client')
+      inbox.getSubscriberToken = function () { return 'st_e2e' }
+    </script>
+    <script src="/dist/hermes-inbox.global.js"></script>
+  </body>
+</html>

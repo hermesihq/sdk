@@ -29,6 +29,8 @@
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { createContext, runInContext } from 'node:vm'
+import { gzipSync } from 'node:zlib'
 import { join, resolve } from 'node:path'
 
 const PACKAGE_DIR = process.cwd()
@@ -211,6 +213,35 @@ if (missing.length || undeclared.length) process.exit(1)
     }
     if (problems.length) throw new Error(problems.join('\n'))
   })
+
+  // A package that ships a script for a `<script>` tag declares it, with a budget, next to itself.
+  const budgetFile = join(PACKAGE_DIR, 'scripts', 'size-budget.json')
+  const budgets = existsSync(budgetFile) ? JSON.parse(readFileSync(budgetFile, 'utf8')) : {}
+  for (const [file, budget] of Object.entries(budgets)) {
+    check(`${file} stays within its size budget`, () => {
+      // Size creeps one dependency at a time and nobody notices until a page is slow. The budget
+      // is a number somebody chose, and raising it is a line in a diff a reviewer reads.
+      const bytes = readFileSync(join(installed, file))
+      const gzipped = gzipSync(bytes).length
+      const problems = []
+      if (bytes.length > budget.maxBytes) problems.push(`${bytes.length} bytes, budget ${budget.maxBytes}`)
+      if (gzipped > budget.maxGzipBytes) problems.push(`${gzipped} bytes gzipped, budget ${budget.maxGzipBytes}`)
+      console.log(`        ${bytes.length} bytes, ${gzipped} gzipped (budget ${budget.maxBytes} / ${budget.maxGzipBytes})`)
+      if (problems.length) throw new Error(problems.join('\n'))
+    })
+
+    check(`${file} runs as a classic script, on a server, and exposes ${budget.global}`, () => {
+      // Executed the way a `<script>` tag would, in a context that has nothing: no document, no
+      // `require`, no `import`. A bare import left in the bundle is a ReferenceError here, and a
+      // module that touches the DOM at load is a TypeError. This is also the server-render case.
+      const context = createContext({})
+      runInContext(readFileSync(join(installed, file), 'utf8'), context, { filename: file })
+      const exposed = context[budget.global]
+      if (!exposed) throw new Error(`no global ${budget.global} after running it`)
+      const missing = budget.exports.filter((name) => exposed[name] === undefined)
+      if (missing.length) throw new Error(`${budget.global} lacks ${missing.join(', ')}`)
+    })
+  }
 
   check('ships no internal ticket or section numbers, in any file', () => {
     // Identifiers from this project's own planning documents (a feature code, a section
