@@ -1,8 +1,12 @@
-import { randomUUID } from 'node:crypto'
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from './fixtures'
+import { bell, drawn, open, panel, show } from './helpers'
 
 /**
- * `<HermsInbox />` as published, in a real engine.
+ * The inbox as published, in a real engine, in both of its implementations: `<HermsInbox />` from
+ * `@hermesihq/react` and `<hermes-inbox>` from `@hermesihq/element`. The same cases run against
+ * each (see `fixtures.ts`), so a behaviour the React component has and the element lacks is a
+ * failing test, not a review comment. A case that belongs to one only says so and skips the other.
+ *
  *
  * The unit tests run in jsdom, which has no layout, no cascade and no real focus model, so they
  * cannot see most of what a person sees. Two defects shipped because of that: a panel with no
@@ -12,60 +16,6 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
  * These cases are also the reference behaviour for the custom element. Where React does something
  * the element has to do too, this is where it is written down.
  */
-
-const ITEMS = [
-  { id: 'inb_1', title: 'Order shipped', body: 'Your order is on its way.' },
-  { id: 'inb_2', title: 'Invoice paid', body: 'Thank you.' },
-  { id: 'inb_3', title: 'Welcome', body: 'Glad to have you.', read_at: '2026-09-01T10:00:00Z', seen_at: '2026-09-01T10:00:00Z' },
-]
-
-interface Opened {
-  tenant: string
-  /** Lets through a list held by the `holdList` scenario. */
-  release: () => Promise<void>
-  requests: () => Promise<string[]>
-  streamsOpen: () => Promise<number>
-}
-
-/** One isolated inbox on the mock server, and the page showing it. */
-async function show(page: Page, options: { query?: Record<string, string>; scenario?: Record<string, unknown>; items?: unknown[] } = {}): Promise<Opened> {
-  const tenant = randomUUID()
-  const reset = await page.request.post(`/__reset?tenant=${tenant}`, { data: { items: options.items ?? ITEMS, ...options.scenario } })
-  expect(reset.ok()).toBe(true)
-  await page.goto(`/pages/react-inbox.html?${new URLSearchParams({ tenant, ...options.query })}`)
-  return {
-    tenant,
-    release: async () => void (await page.request.post(`/__release?tenant=${tenant}`)),
-    requests: async () => (await page.request.get(`/__requests?tenant=${tenant}`)).json(),
-    streamsOpen: async () => ((await (await page.request.get(`/__streams?tenant=${tenant}`)).json()) as { open: number }).open,
-  }
-}
-
-const bell = (page: Page): Locator => page.getByRole('button', { name: /Notifications|non lues/ })
-const panel = (page: Page): Locator => page.getByRole('dialog', { name: 'Notifications' })
-
-async function open(page: Page): Promise<void> {
-  await bell(page).click()
-  await expect(panel(page)).toBeVisible()
-}
-
-/** Computed style of the panel: what is actually drawn, not what a stylesheet says. */
-function drawn(target: Locator) {
-  return target.evaluate((element) => {
-    const style = getComputedStyle(element)
-    return {
-      background: style.backgroundColor,
-      color: style.color,
-      borderWidth: style.borderTopWidth,
-      borderStyle: style.borderTopStyle,
-      borderColor: style.borderTopColor,
-      radius: style.borderTopLeftRadius,
-      boxSizing: style.boxSizing,
-      width: Math.round(element.getBoundingClientRect().width),
-      accent: style.getPropertyValue('--herms-color-accent').trim(),
-    }
-  })
-}
 
 test.describe('the panel is styled', () => {
   test.describe('on a light system', () => {
@@ -146,7 +96,8 @@ test.describe('the panel is styled', () => {
     expect(await drawn(panel(page))).toMatchObject({ background: 'rgb(1, 2, 3)', radius: '3px', accent: 'rgb(4, 5, 6)' })
   })
 
-  test('and the host class reaches it, so one rule themes the bell and the panel', async ({ page }) => {
+  test('and the host class reaches it, so one rule themes the bell and the panel', async ({ page, flavor }) => {
+    test.skip(flavor === 'element', 'The element has no className to forward: a host styles the element itself, and its variables inherit.')
     await show(page, { query: { className: 'my-inbox' } })
     await open(page)
 
@@ -272,10 +223,26 @@ test.describe('where the panel is drawn', () => {
     await open(page)
 
     const verdict = await page.evaluate(() => {
+      const deep = (selector: string, root: Document | ShadowRoot = document): Element | null => {
+        const found = root.querySelector(selector)
+        if (found) return found
+        for (const host of root.querySelectorAll('*')) {
+          const inner = host.shadowRoot && deep(selector, host.shadowRoot)
+          if (inner) return inner
+        }
+        return null
+      }
       const clip = document.getElementById('clip')!.getBoundingClientRect()
-      const panelEl = document.querySelector('.herms-inbox__panel')!
+      const panelEl = deep('.herms-inbox__panel')!
       const box = panelEl.getBoundingClientRect()
-      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + 20)
+      // What is topmost at a point, looking into shadow roots: `elementFromPoint` on the document
+      // stops at the host.
+      let hit: Element | null = document.elementFromPoint(box.left + box.width / 2, box.top + 20)
+      while (hit?.shadowRoot) {
+        const inner: Element | null = hit.shadowRoot.elementFromPoint(box.left + box.width / 2, box.top + 20)
+        if (!inner || inner === hit) break
+        hit = inner
+      }
       return { extendsPastTheClip: box.bottom > clip.bottom + 40, topmostIsThePanel: !!hit?.closest('.herms-inbox__panel') }
     })
 
@@ -289,8 +256,17 @@ test.describe('where the panel is drawn', () => {
     await open(page)
     const gap = () =>
       page.evaluate(() => {
-        const trigger = document.querySelector('.herms-inbox__trigger')!.getBoundingClientRect()
-        const panelEl = document.querySelector('.herms-inbox__panel')!.getBoundingClientRect()
+      const deep = (selector: string, root: Document | ShadowRoot = document): Element | null => {
+        const found = root.querySelector(selector)
+        if (found) return found
+        for (const host of root.querySelectorAll('*')) {
+          const inner = host.shadowRoot && deep(selector, host.shadowRoot)
+          if (inner) return inner
+        }
+        return null
+      }
+        const trigger = deep('.herms-inbox__trigger')!.getBoundingClientRect()
+        const panelEl = deep('.herms-inbox__panel')!.getBoundingClientRect()
         return Math.round(panelEl.top - trigger.bottom)
       })
     const before = await gap()
@@ -369,7 +345,8 @@ test.describe('when the server answers with the wrong thing', () => {
     await expect(page.getByText('Order shipped')).toBeVisible()
   })
 
-  test('KNOWN GAP: the refusal is an unhandled rejection, with nothing shown to the person', async ({ page }) => {
+  test('KNOWN GAP: the refusal is an unhandled rejection, with nothing shown to the person', async ({ page, flavor }) => {
+    test.skip(flavor === 'element', 'The element reports it as a hermes-error event: see element.spec.ts.')
     // Documents what happens today, so that fixing it is a visible change rather than an accident.
     // The component calls `void markRead(...)`, so any failed mutation is a rejection nobody
     // handles. When the component reports a failure, this test should be rewritten, not deleted.

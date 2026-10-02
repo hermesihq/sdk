@@ -1,0 +1,56 @@
+{
+  "name": "@hermesihq/element",
+  "version": "0.1.0",
+  "description": "A <hermes-inbox> custom element: Hermesi's notification bell and panel for any page, with no framework.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hermesihq/sdk.git",
+    "directory": "packages/element"
+  },
+  "homepage": "https://github.com/hermesihq/sdk/tree/main/packages/element#readme",
+  "bugs": "https://github.com/hermesihq/sdk/issues",
+  "keywords": [
+    "hermesi",
+    "notifications",
+    "inbox",
+    "web-components",
+    "custom-element"
+  ],
+  "sideEffects": true,
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "prebuild": "npm run build -w @hermesihq/js",
+    "build": "tsup",
+    "test": "vitest run",
+    "verify:package": "node ../../scripts/verify-package.mjs",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "prepublishOnly": "npm run typecheck && npm run build"
+  },
+  "dependencies": {
+    "@hermesihq/js": "^0.1.1"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/user-event": "^14.6.7"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

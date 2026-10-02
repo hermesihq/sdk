@@ -1,0 +1,55 @@
+/*
+ * What the element adds to the shared stylesheet. Everything about how the inbox looks is in
+ * `@hermesihq/inbox-ui`'s `inbox.css`; this is only what a shadow root and a native popover need.
+ */
+
+:host {
+  display: inline-block;
+}
+
+:host([hidden]) {
+  display: none;
+}
+
+/* The shared rules set `display` on some elements, which beats the `hidden` attribute. */
+[hidden] {
+  display: none !important;
+}
+
+/*
+ * The shared stylesheet gives the panel `display: flex`, which beats the user agent's
+ * `[popover]:not(:popover-open) { display: none }`. Without this a closed panel is drawn.
+ */
+.herms-inbox__panel:not(:popover-open) {
+  display: none;
+}
+
+/*
+ * A popover is a fixed box in the top layer, centred by the user agent with `inset: 0; margin:
+ * auto`, with its own padding. The script puts it beside the bell, so the centring goes.
+ */
+.herms-inbox__panel {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 0;
+  color: var(--_herms-text);
+}
+
+/* Between opening and the first measurement the panel exists but is not yet where it belongs. */
+.herms-inbox__panel[data-positioning] {
+  visibility: hidden;
+}
+
+/* The unread dot and the badge are colour alone; in forced colours that colour is gone. */
+@media (forced-colors: active) {
+  .herms-inbox__badge {
+    border: 1px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+
+  .herms-inbox__item[data-unread='true'] .herms-inbox__item-title::before {
+    background: CanvasText;
+  }
+}

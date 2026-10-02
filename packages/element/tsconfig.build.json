@@ -1,0 +1,9 @@
+{
+  // What the published build compiles under: `@hermesihq/js` through `node_modules` to its built
+  // `dist`, as it will resolve for whoever installs this, and the private `@hermesihq/inbox-ui`
+  // through its source so that its declarations are inlined (npm has no such package).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": { "@hermesihq/inbox-ui": ["../inbox-ui/src/index.ts"] }
+  }
+}
