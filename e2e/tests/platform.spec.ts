@@ -55,7 +55,7 @@ test('a click outside closes it', async ({ page }) => {
   expect(await isOpen()).toBe(false)
 })
 
-test('focus after it closes: Firefox restores it to the bell, Chromium and WebKit leave it nowhere', async ({ page, browserName }) => {
+test('focus after it closes is either restored to the bell or left nowhere, and it depends on the build', async ({ page }) => {
   const { bell, isOpen } = await probe(page)
   await bell.click()
   await page.locator('#inside').focus()
@@ -63,10 +63,13 @@ test('focus after it closes: Firefox restores it to the bell, Chromium and WebKi
   expect(await isOpen()).toBe(false)
 
   const active = await page.evaluate(() => document.getElementById('host')!.shadowRoot!.activeElement?.id ?? null)
-  // The engines disagree, which is why the element returns the focus itself rather than relying
-  // on it: where the platform already does, the element's call is a harmless repeat.
-  if (browserName === 'firefox') expect(active).toBe('bell')
-  else expect(active).toBeNull()
+  // The engines disagree, and so do builds of one engine: Firefox restores it to the bell; Chromium
+  // leaves it nowhere; WebKit left it nowhere on Windows and restored it on Linux. That is why the
+  // element returns the focus itself rather than relying on any of them: where the platform already
+  // does, the element's call is a harmless repeat. All that can be pinned is that it is never stuck
+  // inside a panel that is no longer there.
+  test.info().annotations.push({ type: 'focus after close', description: String(active) })
+  expect([null, 'bell']).toContain(active)
 })
 
 test('the platform does not move it when the page scrolls', async ({ page }) => {

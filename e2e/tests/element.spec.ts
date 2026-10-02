@@ -196,7 +196,9 @@ test.describe('events and methods', () => {
     await page.keyboard.press('Escape')
     await expect(panel(page)).toBeHidden()
 
-    expect(await page.evaluate(() => (window as unknown as { events: string[] }).events)).toEqual(['hermes-open', 'hermes-close'])
+    // `toggle` is queued as a task after the panel is hidden, so the event can trail the panel
+    // disappearing by a moment.
+    await expect.poll(() => page.evaluate(() => (window as unknown as { events: string[] }).events)).toEqual(['hermes-open', 'hermes-close'])
   })
 
   test('open(), close() and isOpen', async ({ page }) => {

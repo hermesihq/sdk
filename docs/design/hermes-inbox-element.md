@@ -274,9 +274,10 @@ the reasoning can be read; this is the list of where it was wrong.
   test names both as intentional differences.
 * **`composed` is moot on the events.** They are dispatched on the host element, which is in the
   page's tree. They bubble; that is all a page needs.
-* **Focus return differs by engine.** Section 2 measured Chromium: the platform does not return
-  focus. Measured in all three: Firefox does (to the bell), Chromium and WebKit leave it nowhere.
-  The element returns it itself in every engine, which is a harmless repeat in Firefox.
+* **Focus return differs by engine, and by build.** Section 2 measured Chromium: the platform does
+  not return focus. Measured in all three: Firefox does (to the bell), Chromium does not, and WebKit
+  did not on Windows but did on Linux. The element returns it itself in every engine, which is a
+  harmless repeat where the platform already does.
 * **Firefox and WebKit are no blocker.** Everything in section 2 held in both: the top layer, Escape,
   a click outside, and the three things the platform does not do (focus return in two of three,
   following a scroll, closing when focus leaves).
