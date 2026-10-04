@@ -33,6 +33,14 @@ if (!existsSync(script)) {
 mkdirSync(`${root}dist`, { recursive: true })
 copyFileSync(script, `${root}dist/hermes-inbox.global.js`)
 
+// The service worker script, likewise served as the file it is: a worker loads it with `importScripts`.
+const workerScript = fileURLToPath(new URL('../packages/js/dist/service-worker.global.js', import.meta.url))
+if (!existsSync(workerScript)) {
+  console.error(`${workerScript} is missing. Run \`npm run build\` at the repository root first.`)
+  process.exit(1)
+}
+copyFileSync(workerScript, `${root}dist/service-worker.global.js`)
+
 await build({
   absWorkingDir: root,
   entryPoints: { 'react-inbox': 'pages/react-inbox.tsx', 'element-inbox': 'pages/element-inbox.ts' },

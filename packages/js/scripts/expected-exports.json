@@ -5,8 +5,12 @@
     "HermsApiError",
     "HermsClient",
     "HermsSession",
+    "HermsWebPushError",
     "InboxStore",
     "PreferencesStore",
-    "decodeSubscriberTokenExp"
+    "decodeSubscriberTokenExp",
+    "disableWebPush",
+    "enableWebPush",
+    "isWebPushSupported"
   ]
 }
