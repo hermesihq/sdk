@@ -44,7 +44,17 @@ export interface HermsInboxProps {
   colorScheme?: HermsColorScheme
   locale?: HermsLocale
   className?: string
+  /**
+   * Called when something the person did fails: marking a notification read, marking all read, archiving, or marking them
+   * seen. Receives an `Error` (a `HermsApiError` when Hermesi refused the request). The component shows nothing itself
+   * for these, because the list is the source of truth and the next refresh corrects it; this is how your app finds out,
+   * to log it or tell the person. When omitted, the error is logged with `console.error`, so it is never silent and
+   * never an unhandled promise rejection. The custom element reports the same failures as a `hermes-error` event.
+   */
+  onError?: (error: Error) => void
 }
+
+const toError = (value: unknown): Error => (value instanceof Error ? value : new Error(String(value)))
 
 function BellIcon() {
   return (
@@ -87,12 +97,12 @@ function AlertIcon() {
  * entirely on the headless `useInbox`/`useUnreadCount` hooks; every state
  * (loading, empty, error, populated) renders here, none of it invented by a
  * host app. Accessible: a real `<button>` trigger with `aria-label`/
- * `aria-expanded`, the panel as `role="menu"` with roving-tabindex arrow-key
+ * `aria-expanded`, the panel as a dialog holding a list of buttons with arrow-key
  * navigation, `Home`/`End`, `Escape`-to-close (native to Radix `Popover`,
  * which also returns focus to the trigger), and `Enter`/`Space` (native
  * `<button>` behavior) to activate the focused item.
  */
-export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, colorScheme = 'auto', locale, className }: HermsInboxProps) {
+export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, colorScheme = 'auto', locale, className, onError }: HermsInboxProps) {
   const { client } = useHermsContext()
   const { unread, unseen } = useUnreadCount()
   const { items, isLoading, isLoadingMore, error, hasMore, loadMore, markRead, markAllRead, archive, refetch } = useInbox()
@@ -107,6 +117,19 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
   const awaitingList = useRef(false)
   const strings = getHermsInboxStrings(locale)
   const titleId = useId()
+  // The latest `onError`, read when a failure arrives and not captured when the action was started, so that a handler that
+  // changes between renders is the one that is called, without making every callback below depend on it.
+  const onErrorRef = useRef(onError)
+  onErrorRef.current = onError
+
+  /** A mutation that was started and not waited for: its failure is reported, never left as an unhandled rejection. */
+  const guard = useCallback((promise: Promise<unknown>): void => {
+    promise.catch((error: unknown) => {
+      const reported = toError(error)
+      if (onErrorRef.current) onErrorRef.current(reported)
+      else console.error('[hermesi] The inbox could not complete an action.', reported)
+    })
+  }, [])
 
   // "Seen" (the bell was opened) is distinct from "read." Marks
   // every currently loaded, not-yet-seen id seen once the panel is open and
@@ -116,8 +139,8 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
     if (!open || items.length === 0) return
     const toMark = seenRef.current.take(items)
     if (toMark.length === 0) return
-    void client.markSeen(toMark)
-  }, [open, items, client])
+    guard(client.markSeen(toMark))
+  }, [open, items, client, guard])
 
   useEffect(() => {
     if (open) setActiveIndex(0)
@@ -153,14 +176,14 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
   const handleActivate = useCallback(
     (item: HermsInboxItem) => {
       activateItem(item, {
-        markRead,
+        markRead: (id) => guard(markRead(id)),
         onItemClick,
         navigate: (url) => {
           if (typeof window !== 'undefined') window.location.assign(url)
         },
       })
     },
-    [markRead, onItemClick],
+    [markRead, onItemClick, guard],
   )
 
   const rootStyle = useMemo<CSSProperties>(() => themeVariables(theme), [theme?.accent, theme?.radius])
@@ -228,7 +251,7 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
             <div className="herms-inbox__header">
               <p className="herms-inbox__title" id={titleId}>{strings.panelTitle}</p>
               <div className="herms-inbox__header-actions">
-                <button type="button" className="herms-inbox__text-button" onClick={() => void markAllRead()} disabled={unread === 0}>
+                <button type="button" className="herms-inbox__text-button" onClick={() => guard(markAllRead())} disabled={unread === 0}>
                   {strings.markAllRead}
                 </button>
                 <Popover.Close asChild>
@@ -257,16 +280,18 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
               <div className="herms-inbox__state">{strings.empty}</div>
             ) : (
               <>
-                <ul className="herms-inbox__list" role="menu" aria-label={strings.panelTitle} onKeyDown={handleListKeyDown}>
+                {/* A list of buttons, not an ARIA menu: each row holds two controls (the notification and its archive
+                    button), and a menu may own only menu items, so the archive buttons would sit outside the pattern. `role="list"`
+                    is explicit because Safari drops list semantics from a list whose bullets are removed. Arrow keys still move
+                    between notifications; every control is also reachable with Tab, as in any list of buttons. */}
+                <ul className="herms-inbox__list" role="list" aria-label={strings.panelTitle} onKeyDown={handleListKeyDown}>
                   {items.map((item, index) => (
-                    <li key={item.id} className="herms-inbox__list-row" role="none">
+                    <li key={item.id} className="herms-inbox__list-row">
                       <button
                         type="button"
-                        role="menuitem"
                         ref={(el) => {
                           itemRefs.current[index] = el
                         }}
-                        tabIndex={index === activeIndex ? 0 : -1}
                         className="herms-inbox__item"
                         data-unread={!item.readAt}
                         onFocus={() => setActiveIndex(index)}
@@ -282,7 +307,7 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
                         aria-label={`${strings.archive}: ${item.title}`}
                         onClick={(event) => {
                           event.stopPropagation()
-                          void archive(item.id)
+                          guard(archive(item.id))
                         }}
                       >
                         <ArchiveIcon />

@@ -1,6 +1,6 @@
 {
   "name": "@hermesihq/react",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "Embeddable notification inbox for React: hooks over Hermesi's client API, plus a ready bell-and-panel component.",
   "type": "module",
   "license": "MIT",
@@ -22,6 +22,7 @@
   ],
   "files": [
     "dist",
+    "styles.d.ts",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
@@ -35,7 +36,10 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
-    "./styles.css": "./dist/index.css"
+    "./styles.css": {
+      "types": "./styles.d.ts",
+      "default": "./dist/index.css"
+    }
   },
   "scripts": {
     "prebuild": "npm run build -w @hermesihq/js",

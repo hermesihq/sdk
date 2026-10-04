@@ -198,12 +198,13 @@ together. Contract:
 * The stylesheet gains `@media (forced-colors: active)` for the badge and the unread dot,
   which today rely on colour alone. There is no animation, so reduced motion is moot.
 
-**An open accessibility question I cannot settle here:** the item list uses `role="menu"` with
-`menuitem`s. That pattern implies menu semantics (and puts some screen readers into a forms
-mode) for what is really a list of notifications, and the archive buttons inside it are not
-menu items. A plain list of buttons may read better. This needs real screen-reader testing, which
-I cannot do, so it is **not** changed here. It stays as it is in both implementations until
-someone can test it.
+**Settled afterwards (D7): the list is a plain list of buttons, not an ARIA menu.** The first version used `role="menu"`
+with `menuitem`s, and this note left it open pending a screen reader. What decided it was not a screen reader but the
+structure: each row holds two controls, the notification and its archive button, and a menu may own only menu items, so the
+archive buttons sat outside the pattern. An automated check (axe-core, in the end-to-end suite) flagged the element's menu
+form with `aria-required-children` and finds nothing in the list form. The list is `role="list"` explicitly, because
+Safari drops list semantics from a list whose bullets are removed. The roving tab index went with the menu: every control is
+reachable with `Tab`, and the arrow keys remain a shortcut. It has still **not been tried with a real screen reader**.
 
 ## 5. Styling contract
 
@@ -256,7 +257,7 @@ against deliberately broken code before it is trusted.
 * Screen readers: none tested. Parity with the React component is a floor, not evidence of
   quality.
 * iOS Safari, and touch input generally.
-* Whether `role="menu"` is right (D7).
+* Whether the list reads well with a real screen reader (D7: it is a list of buttons now, checked with axe-core only).
 * The byte budget, until there is a first build to measure.
 
 ## 10. What building it changed

@@ -19,6 +19,26 @@ at least one real integration exists.
 Each release lists breaking changes first, because that is the only section that
 decides whether an upgrade is a decision or a formality.
 
+## 0.3.0 (2026-10-04)
+
+### Changed (read this first)
+
+- **The notification list is a list of buttons, not an ARIA menu.** The rows no longer have `role="menu"`, `role="menuitem"` or
+  `role="none"`. Each row holds two controls, the notification and its archive button, and a menu may own only menu items,
+  so the archive buttons sat outside the pattern. If your tests or your styles select `[role="menuitem"]`, select
+  `.herms-inbox__item` instead. Keyboard: every control is now reachable with `Tab` (the notification buttons no longer use
+  a roving tab index), and the arrow keys, `Home` and `End` still move between notifications.
+
+### Added
+
+- **`onError`.** Called with an `Error` when an action the person took fails: marking a notification read, marking all read,
+  archiving, or marking seen. Before, each of these was a promise nobody handled, so a refusal was an unhandled rejection
+  that the host could neither catch nor see. Without `onError` the error is logged with `console.error`.
+- **Forced colours.** The unseen badge and the unread dot, which are colour alone, keep an outline and a fill in the user's own
+  colours in Windows high contrast mode. The rules were in the custom element's stylesheet only.
+- **Types for the stylesheet import.** `import '@hermesihq/react/styles.css'` no longer fails with TS2882 under
+  `noUncheckedSideEffectImports`.
+
 ## 0.2.3 (2026-10-02)
 
 ### Fixed

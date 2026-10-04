@@ -172,7 +172,7 @@ if (missing.length || undeclared.length) process.exit(1)
   const tsconfig = (module, moduleResolution) =>
     JSON.stringify(
       {
-        compilerOptions: { strict: true, noEmit: true, module, moduleResolution, target: 'es2022', jsx: 'react-jsx', skipLibCheck: true },
+        compilerOptions: { strict: true, noEmit: true, module, moduleResolution, target: 'es2022', jsx: 'react-jsx', skipLibCheck: true, noUncheckedSideEffectImports: true },
         include: ['types.ts'],
       },
       null,

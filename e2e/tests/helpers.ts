@@ -33,6 +33,9 @@ export async function show(page: Page, options: { query?: Record<string, string>
 export const bell = (page: Page): Locator => page.getByRole('button', { name: /Notifications|non lues/ })
 export const panel = (page: Page): Locator => page.getByRole('dialog', { name: 'Notifications' })
 
+/** The notification buttons in the open panel (not their archive buttons). Each row is a list item holding the two. */
+export const notifications = (page: Page): Locator => page.getByRole('list', { name: 'Notifications' }).getByRole('listitem').locator('.herms-inbox__item')
+
 export async function open(page: Page): Promise<void> {
   await bell(page).click()
   await expect(panel(page)).toBeVisible()

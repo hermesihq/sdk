@@ -39,6 +39,15 @@ describe('the stylesheet', () => {
     expect(declared).toEqual([])
   })
 
+  it('keeps the badge and the unread dot visible in forced colours, for React and for the element alike', () => {
+    // Both are colour alone, and forced colours (Windows high contrast) replaces every colour. This is the shared file, so a
+    // rule dropped from it fails here for both. (The element's own stylesheet had them and the React component did not.)
+    const block = css.match(/@media \(forced-colors: active\) \{([\s\S]*?)\n\}/)
+    expect(block, 'a forced-colors block').not.toBeNull()
+    expect(block?.[1]).toMatch(/\.herms-inbox__badge \{[^}]*border: 1px solid CanvasText/)
+    expect(block?.[1]).toMatch(/\.herms-inbox__item\[data-unread='true'\] \.herms-inbox__item-title::before \{[^}]*background: CanvasText/)
+  })
+
   it('sizes the panel and everything in it with border-box, like the rest of the widget', () => {
     const sizing = rules.find((rule) => rule.body.includes('box-sizing: border-box'))
 

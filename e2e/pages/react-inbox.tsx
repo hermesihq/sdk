@@ -51,6 +51,12 @@ window.addEventListener('unhandledrejection', (event) => {
   ;(window as unknown as { rejections: string[] }).rejections.push(String(event.reason?.code ?? event.reason))
 })
 
+// What the component reports through `onError`, so a test can see a failed action reach the host.
+;(window as unknown as { reported: string[] }).reported = []
+props.onError = (error) => {
+  ;(window as unknown as { reported: string[] }).reported.push(String((error as { code?: string }).code ?? error.message))
+}
+
 createRoot(document.getElementById('root')!).render(
   <HermsProvider client={client}>
     <HermsInbox {...props} />

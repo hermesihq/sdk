@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { expect, test } from './fixtures'
-import { ITEMS, bell, open, panel } from './helpers'
+import { ITEMS, bell, notifications, open, panel } from './helpers'
 
 /**
  * The `<script>`-tag build, loaded the way its README says: one classic script, no bundler, the
@@ -28,8 +28,8 @@ test('opens, lists the notifications and focuses the first', async ({ page }) =>
   await open(page)
 
   await expect(panel(page)).toBeVisible()
-  await expect(page.getByRole('menuitem')).toHaveCount(3)
-  await expect(page.getByRole('menuitem').first()).toBeFocused()
+  await expect(notifications(page)).toHaveCount(3)
+  await expect(notifications(page).first()).toBeFocused()
 })
 
 test('exposes defineHermesInbox for another tag name, and registers the default itself', async ({ page }) => {

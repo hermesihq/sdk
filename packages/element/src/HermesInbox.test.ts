@@ -186,22 +186,29 @@ describe('the bell', () => {
 })
 
 describe('the panel', () => {
-  it('lists the notifications as a keyboard-navigable menu', async () => {
+  it('lists the notifications as a list of buttons that the arrow keys move through', async () => {
     const { element } = mount({ items: [wireItem('inb_1'), wireItem('inb_2')], unread: 2, unseen: 2 })
     await openPanel(element)
 
-    const menu = await queries(element).findByRole('menu')
-    const rows = within(menu).getAllByRole('menuitem')
+    const list = await queries(element).findByRole('list', { name: 'Notifications' })
+    const rows = within(list)
+      .getAllByRole('listitem')
+      .map((item) => item.querySelector<HTMLElement>('.herms-inbox__item')!)
     expect(rows.map((row) => row.textContent)).toEqual([
       expect.stringContaining('Notification inb_1'),
       expect.stringContaining('Notification inb_2'),
     ])
 
-    // Roving tabindex: exactly one row is in the tab order at a time, and the arrow keys move it.
+    // Not an ARIA menu: each row holds the notification and its archive button, and a menu may own only menu items. So no row
+    // claims a menu role, and every control stays reachable with Tab as in any list of buttons; the arrow keys are a shortcut.
+    expect(queries(element).queryByRole('menu')).toBeNull()
+    expect(queries(element).queryByRole('menuitem')).toBeNull()
+    expect(rows.filter((row) => row.getAttribute('tabindex') === '-1')).toHaveLength(0)
     await waitFor(() => expect(element.shadowRoot!.activeElement).toBe(rows[0]))
     await userEvent.keyboard('{ArrowDown}')
     expect(element.shadowRoot!.activeElement).toBe(rows[1])
-    expect(rows.filter((row) => row.getAttribute('tabindex') === '0')).toHaveLength(1)
+    await userEvent.keyboard('{Home}')
+    expect(element.shadowRoot!.activeElement).toBe(rows[0])
   })
 
   it('renders the empty state when there is nothing to show', async () => {
@@ -209,7 +216,7 @@ describe('the panel', () => {
     await openPanel(element)
 
     expect(await queries(element).findByText("You're all caught up")).toBeTruthy()
-    expect(queries(element).queryByRole('menu')).toBeNull()
+    expect(queries(element).queryByRole('list')).toBeNull()
   })
 
   it('renders an error state with a retry that actually retries', async () => {
@@ -271,7 +278,7 @@ describe('activating a notification', () => {
     element.addEventListener('hermes-item-click', onItemClick)
     await openPanel(element)
 
-    await userEvent.click(await queries(element).findByRole('menuitem', { name: /Notification inb_1/ }))
+    await userEvent.click(await queries(element).findByRole('button', { name: /^Notification inb_1/ }))
 
     // The host drives its router: it prevents the default, and the element does not navigate.
     expect(onItemClick).toHaveBeenCalledTimes(1)
@@ -293,7 +300,7 @@ describe('activating a notification', () => {
 
     await waitFor(() => expect(calls.some((call) => call.route === 'POST /v1/client/inbox/inb_1/archive')).toBe(true))
     expect(onItemClick).not.toHaveBeenCalled()
-    await waitFor(() => expect(queries(element).queryByRole('menuitem', { name: /Notification inb_1/ })).toBeNull())
+    await waitFor(() => expect(queries(element).queryByRole('button', { name: /^Notification inb_1/ })).toBeNull())
   })
 })
 
@@ -477,7 +484,7 @@ describe('events', () => {
 
     // A change to the list while it stays open must not report the same rows again.
     queries(element).getByRole('button', { name: 'Archive: Notification inb_1' }).click()
-    await waitFor(() => expect(queries(element).queryByRole('menuitem', { name: /Notification inb_1/ })).toBeNull())
+    await waitFor(() => expect(queries(element).queryByRole('button', { name: /^Notification inb_1/ })).toBeNull())
     await new Promise((resolve) => setTimeout(resolve, 30))
 
     expect(calls.filter((call) => call.route === 'POST /v1/client/inbox/seen')).toHaveLength(1)
@@ -496,7 +503,7 @@ describe('events', () => {
     expect(seen).toEqual(['open', 'close'])
   })
 
-  it('reports a failed mutation as an event instead of an unhandled rejection', async () => {
+  it('reports a failed mutation to the host instead of an unhandled rejection', async () => {
     const unhandled = vi.fn()
     process.on('unhandledRejection', unhandled)
     const { element } = mount({ items: [wireItem('inb_1')], unread: 1, unseen: 1, failing: ['POST /v1/client/inbox/read-all'] })
@@ -587,7 +594,7 @@ describe('opening and closing', () => {
     await openPanel(element)
     // Nothing to focus yet: the panel waits with the focus itself.
     expect(element.shadowRoot!.activeElement).toBe(panel(element))
-    expect(within(wrapper(element)).queryAllByRole('menuitem')).toHaveLength(0)
+    expect(within(wrapper(element)).queryAllByRole('listitem')).toHaveLength(0)
 
     release()
 
@@ -602,7 +609,7 @@ describe('opening and closing', () => {
     close.focus()
 
     release()
-    await queries(element).findByRole('menuitem', { name: /Notification inb_1/ })
+    await queries(element).findByRole('button', { name: /^Notification inb_1/ })
 
     expect(element.shadowRoot!.activeElement).toBe(close)
   })
@@ -662,15 +669,15 @@ describe('opening and closing', () => {
     const { element } = mount({ items: [wireItem('inb_1'), wireItem('inb_2')], unread: 2, unseen: 2 })
     await openPanel(element)
     await waitFor(() => expect(focusedRow(element)).toContain('Notification inb_1'))
-    const second = queries(element).getByRole('menuitem', { name: /Notification inb_2/ })
+    const second = queries(element).getByRole('button', { name: /^Notification inb_2/ })
     second.focus()
 
     // Archiving the first row re-renders the list; the second must be the same node, still focused.
     // `click()` and not a pointer click, which would move the focus to the archive button itself.
     queries(element).getByRole('button', { name: 'Archive: Notification inb_1' }).click()
-    await waitFor(() => expect(queries(element).queryByRole('menuitem', { name: /Notification inb_1/ })).toBeNull())
+    await waitFor(() => expect(queries(element).queryByRole('button', { name: /^Notification inb_1/ })).toBeNull())
 
-    expect(queries(element).getByRole('menuitem', { name: /Notification inb_2/ })).toBe(second)
+    expect(queries(element).getByRole('button', { name: /^Notification inb_2/ })).toBe(second)
     expect(element.shadowRoot!.activeElement).toBe(second)
   })
 })

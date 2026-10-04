@@ -585,7 +585,9 @@ export class HermesInboxElement extends BaseElement {
       this.#rows.clear()
       const list = document.createElement('ul')
       list.className = 'herms-inbox__list'
-      list.setAttribute('role', 'menu')
+      // A list of buttons, not an ARIA menu: each row holds two controls, and a menu may own only menu items. `role="list"` is
+      // explicit because Safari drops list semantics from a list whose bullets are removed.
+      list.setAttribute('role', 'list')
       list.addEventListener('keydown', this.#onListKeyDown as EventListener)
       this.#list = list
       this.#loadMore = null
@@ -602,13 +604,13 @@ export class HermesInboxElement extends BaseElement {
       }
     }
     let previous: Element | null = null
-    state.items.forEach((item, index) => {
+    state.items.forEach((item) => {
       let row = this.#rows.get(item.id)
       if (!row) {
         row = this.#createRow(item)
         this.#rows.set(item.id, row)
       }
-      this.#updateRow(row, item, index, strings)
+      this.#updateRow(row, item, strings)
       // Only touch the DOM when a row is out of place: moving a row that holds the focus drops it.
       const expected = previous ? previous.nextElementSibling : list.firstElementChild
       if (expected !== row) list.insertBefore(row, expected)
@@ -684,17 +686,14 @@ export class HermesInboxElement extends BaseElement {
   #createRow(item: HermsInboxItem): HTMLLIElement {
     const row = document.createElement('li')
     row.className = 'herms-inbox__list-row'
-    row.setAttribute('role', 'none')
 
     const button = document.createElement('button')
     button.type = 'button'
     button.className = 'herms-inbox__item'
     button.setAttribute('part', 'item')
-    button.setAttribute('role', 'menuitem')
     button.append(this.#span('herms-inbox__item-title'), this.#span('herms-inbox__item-meta'))
     button.addEventListener('focus', () => {
       this.#activeIndex = this.#itemButtons().indexOf(button)
-      this.#syncTabIndex()
     })
     button.addEventListener('click', () => this.#activate(item.id))
 
@@ -714,7 +713,7 @@ export class HermesInboxElement extends BaseElement {
     return span
   }
 
-  #updateRow(row: HTMLLIElement, item: HermsInboxItem, index: number, strings: HermsInboxStrings): void {
+  #updateRow(row: HTMLLIElement, item: HermsInboxItem, strings: HermsInboxStrings): void {
     const button = row.firstElementChild as HTMLButtonElement
     const title = button.querySelector('.herms-inbox__item-title')!
     const meta = button.querySelector('.herms-inbox__item-meta')!
@@ -733,14 +732,7 @@ export class HermesInboxElement extends BaseElement {
     }
     meta.textContent = relativeTime(item.createdAt, this.locale)
     button.dataset.unread = String(!item.readAt)
-    button.tabIndex = index === this.#activeIndex ? 0 : -1
     ;(row.lastElementChild as HTMLButtonElement).setAttribute('aria-label', `${strings.archive}: ${item.title}`)
-  }
-
-  #syncTabIndex(): void {
-    this.#itemButtons().forEach((button, index) => {
-      button.tabIndex = index === this.#activeIndex ? 0 : -1
-    })
   }
 
   // ---- interaction --------------------------------------------------------------------------
@@ -751,7 +743,6 @@ export class HermesInboxElement extends BaseElement {
     if (next === null) return
     event.preventDefault()
     this.#activeIndex = next
-    this.#syncTabIndex()
     buttons[next]?.focus()
   }
 

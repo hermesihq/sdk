@@ -4,7 +4,7 @@
 // pull `HermsInbox.tsx` in, whose `import './HermsInbox.css'` then fails with TS2882.
 // The tidier fix is one line in `tsconfig.test.json`'s `include`; that file is off
 // limits in this change, so the reference lives here instead.
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -62,6 +62,8 @@ interface Api {
   unseen?: number
   /** Answer the list route with this status instead of a page. */
   listStatus?: number
+  /** Routes (`METHOD /path`) that answer 500, to see what a failed action does. */
+  failing?: string[]
 }
 
 interface Recorded {
@@ -75,6 +77,10 @@ function mount(api: Api, ui: ReactNode = <HermsInbox />): Recorded[] {
     const { pathname } = new URL(String(input))
     const route = `${init?.method ?? 'GET'} ${pathname}`
     calls.push({ route, body: typeof init?.body === 'string' ? JSON.parse(init.body) : null })
+
+    if (api.failing?.includes(route)) {
+      return json({ error: { type: 'api_error', code: 'internal_error', message: 'no', request_id: 'r', detail: [], doc_url: '' } }, 500)
+    }
 
     if (pathname.endsWith('/inbox/counts')) return json({ unread: api.unread ?? 0, unseen: api.unseen ?? 0 })
     if (pathname.endsWith('/inbox/seen') || pathname.endsWith('/read-all')) return json({ updated: 1 })
@@ -159,24 +165,29 @@ describe('the bell', () => {
 })
 
 describe('the panel', () => {
-  it('lists the notifications as a keyboard-navigable menu', async () => {
+  it('lists the notifications as a list of buttons that the arrow keys move through', async () => {
     mount({ items: [wireItem('inb_1'), wireItem('inb_2')], unread: 2, unseen: 2 })
     await openPanel()
 
-    const menu = await screen.findByRole('menu')
-    const rows = within(menu).getAllByRole('menuitem')
+    const list = await screen.findByRole('list', { name: 'Notifications' })
+    const rows = within(list)
+      .getAllByRole('listitem')
+      .map((item) => item.querySelector<HTMLElement>('.herms-inbox__item')!)
     expect(rows.map((row) => row.textContent)).toEqual([
       expect.stringContaining('Notification inb_1'),
       expect.stringContaining('Notification inb_2'),
     ])
 
-    // Roving tabindex: exactly one row is in the tab order at a time, and the arrow
-    // keys move it. A menu where every row is tabbable makes a keyboard user tab
-    // through the entire inbox to reach whatever follows the widget.
+    // Not an ARIA menu: each row holds the notification and its archive button, and a menu may own only menu items. So no row
+    // claims a menu role, and every control stays reachable with Tab as in any list of buttons; the arrow keys are a shortcut.
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(screen.queryByRole('menuitem')).toBeNull()
+    expect(rows.filter((row) => row.getAttribute('tabindex') === '-1')).toHaveLength(0)
     await waitFor(() => expect(document.activeElement).toBe(rows[0]))
     await userEvent.keyboard('{ArrowDown}')
     expect(document.activeElement).toBe(rows[1])
-    expect(rows.filter((row) => row.getAttribute('tabindex') === '0')).toHaveLength(1)
+    await userEvent.keyboard('{Home}')
+    expect(document.activeElement).toBe(rows[0])
   })
 
   it('renders the empty state when there is nothing to show', async () => {
@@ -186,7 +197,7 @@ describe('the panel', () => {
     // An empty inbox is the steady state for most people most of the time; it has to
     // read as "nothing to do", not as a broken panel.
     expect(await screen.findByText("You're all caught up")).toBeTruthy()
-    expect(screen.queryByRole('menu')).toBeNull()
+    expect(screen.queryByRole('list')).toBeNull()
   })
 
   it('renders an error state with a retry that actually retries', async () => {
@@ -273,7 +284,7 @@ describe('activating a notification', () => {
     )
     await openPanel()
 
-    await userEvent.click(await screen.findByRole('menuitem', { name: /Notification inb_1/ }))
+    await userEvent.click(await screen.findByRole('button', { name: /^Notification inb_1/ }))
 
     // The host drives its router. A hard `window.location.assign`
     // in a SPA would throw away the page the user was on.
@@ -294,7 +305,7 @@ describe('activating a notification', () => {
     await waitFor(() => expect(calls.some((call) => call.route === 'POST /v1/client/inbox/inb_1/archive')).toBe(true))
     // Clicking archive must not also open the notification — they are nested controls.
     expect(onItemClick).not.toHaveBeenCalled()
-    await waitFor(() => expect(screen.queryByRole('menuitem', { name: /Notification inb_1/ })).toBeNull())
+    await waitFor(() => expect(screen.queryByRole('button', { name: /^Notification inb_1/ })).toBeNull())
   })
 })
 
@@ -377,5 +388,102 @@ describe('the panel is themed and named like the bell', () => {
     // A dialog without a name is announced as just "dialog".
     expect(labelledBy).toBeTruthy()
     expect(dialog.querySelector(`[id="${labelledBy}"]`)?.textContent).toBe('Notifications')
+  })
+})
+
+describe('events', () => {
+  // The unhandled-rejection listener is the point of these cases: the component used to call `void markRead(...)`, so a
+  // refusal escaped as a rejection nobody could catch, and the host had no way to hear about it.
+  async function failureOf(action: () => Promise<void>, onError: ((error: Error) => void) | undefined, failing: string[]) {
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+    mount({ items: [wireItem('inb_1')], unread: 1, unseen: 1, failing }, <HermsInbox onError={onError} />)
+    await openPanel()
+    await action()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    process.off('unhandledRejection', unhandled)
+    return unhandled
+  }
+
+  it('reports a failed mutation to the host instead of an unhandled rejection', async () => {
+    const onError = vi.fn()
+
+    const unhandled = await failureOf(
+      () => userEvent.click(screen.getByRole('button', { name: 'Mark all as read' })),
+      onError,
+      ['POST /v1/client/inbox/read-all'],
+    )
+
+    await waitFor(() => expect(onError).toHaveBeenCalledTimes(1))
+    expect(onError.mock.calls[0]![0]).toBeInstanceOf(Error)
+    expect((onError.mock.calls[0]![0] as { code?: string }).code).toBe('internal_error')
+    expect(unhandled).not.toHaveBeenCalled()
+  })
+
+  it('reports a failed archive, a failed read and a failed seen-marking the same way', async () => {
+    const archive = vi.fn()
+    const unhandledArchive = await failureOf(
+      () => userEvent.click(screen.getByRole('button', { name: /^Archive/ })),
+      archive,
+      ['POST /v1/client/inbox/inb_1/archive'],
+    )
+    await waitFor(() => expect(archive).toHaveBeenCalledTimes(1))
+    expect(unhandledArchive).not.toHaveBeenCalled()
+    cleanup()
+
+    const read = vi.fn()
+    const unhandledRead = await failureOf(
+      () => userEvent.click(screen.getByRole('button', { name: /^Notification inb_1/ })),
+      read,
+      ['POST /v1/client/inbox/inb_1/read'],
+    )
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1))
+    expect(unhandledRead).not.toHaveBeenCalled()
+    cleanup()
+
+    // Marking what is on screen as seen happens by itself when the panel opens, with nothing clicked.
+    const seen = vi.fn()
+    const unhandledSeen = await failureOf(async () => {}, seen, ['POST /v1/client/inbox/seen'])
+    await waitFor(() => expect(seen).toHaveBeenCalledTimes(1))
+    expect(unhandledSeen).not.toHaveBeenCalled()
+  })
+
+  it('logs a failed mutation when the host gave no onError', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const unhandled = await failureOf(
+      () => userEvent.click(screen.getByRole('button', { name: 'Mark all as read' })),
+      undefined,
+      ['POST /v1/client/inbox/read-all'],
+    )
+
+    await waitFor(() => expect(log).toHaveBeenCalled())
+    expect(String(log.mock.calls[0]![0])).toContain('[hermesi]')
+    expect(unhandled).not.toHaveBeenCalled()
+    log.mockRestore()
+  })
+
+  it('calls the latest onError, not the one the component first rendered with', async () => {
+    const first = vi.fn()
+    const second = vi.fn()
+    function Host() {
+      const [handler, setHandler] = useState<(error: Error) => void>(() => first)
+      return (
+        <>
+          <button type="button" onClick={() => setHandler(() => second)}>
+            swap the handler
+          </button>
+          <HermsInbox onError={handler} />
+        </>
+      )
+    }
+    mount({ items: [wireItem('inb_1')], unread: 1, unseen: 1, failing: ['POST /v1/client/inbox/read-all'] }, <Host />)
+    await openPanel()
+    // The panel is modal-ish to the pointer, so swap through the DOM rather than a click outside it.
+    screen.getByRole('button', { name: 'swap the handler', hidden: true }).click()
+    await userEvent.click(screen.getByRole('button', { name: 'Mark all as read' }))
+
+    await waitFor(() => expect(second).toHaveBeenCalledTimes(1))
+    expect(first).not.toHaveBeenCalled()
   })
 })
