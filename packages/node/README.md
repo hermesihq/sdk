@@ -9,8 +9,9 @@ decision about notifications; that is the platform's job.
   retries, so a lost response cannot send a notification twice.
 - **Typed**, with ESM and CommonJS builds.
 - **A test mode** that sends nothing and records what you would have sent.
-- No dependencies. Node 20 and later. It uses only `fetch` and Web Crypto, so it has no `node:` imports (a test enforces it); only
-  Node is tested, but nothing in it should stop it running in another runtime that has both.
+- No dependencies. Node 20 and later. It uses only `fetch` and Web Crypto, so it has no `node:` imports (a test enforces it). It is
+  tested on Node 20, 22 and 24, and in a Next.js Route Handler on both the Node and the Edge runtime; another runtime that has
+  `fetch` and Web Crypto should work and is not tested.
 
 This is for your **server**: a route handler, a worker, a queue consumer. It holds your secret key. For a page, see
 [`@hermesihq/js`](../js); for React, [`@hermesihq/react`](../react).

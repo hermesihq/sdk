@@ -29,6 +29,15 @@ decides whether an upgrade is a decision or a formality.
   `.herms-inbox__item` instead. Keyboard: every control is now reachable with `Tab` (the notification buttons no longer use
   a roving tab index), and the arrow keys, `Home` and `End` still move between notifications.
 
+### Fixed
+
+- **A Next.js Server Component could not import this package.** Rendering `<HermsInbox />` from a page or a layout in
+  the App Router failed the build with `createContext is not a function`, because the package carried no `'use client'`
+  directive and so was treated as server code. The entry points now start with it. Nothing changes for a client
+  component, or for a page that is not Next.js. Because the whole entry is a client module, the four values re-exported
+  from `@hermesihq/js` (`HermsClient`, `HermsApiError`, `HERMS_CHANNELS`, `decodeSubscriberTokenExp`) are client
+  references when imported into a Server Component: import them from `@hermesihq/js` there instead.
+
 ### Added
 
 - **`onError`.** Called with an `Error` when an action the person took fails: marking a notification read, marking all read,

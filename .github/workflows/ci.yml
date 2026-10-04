@@ -51,6 +51,26 @@ jobs:
       - run: npm ci
       - run: npm test -w @hermesihq/node
 
+  # A real Next.js App Router application, built and run against the packed packages. The packages job
+  # proves the artefact installs and imports; only a `next build` shows whether a Server Component can
+  # import it (it could not, for want of a 'use client' directive) and whether the Node package runs in a
+  # Route Handler on the Edge runtime. Both bundlers, because applications still use both.
+  nextjs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        bundler: [turbopack, webpack]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - run: node scripts/next-smoke.mjs --bundler=${{ matrix.bundler }}
+
   # The packages job proves the source and the artefact; this proves what a person sees. It runs
   # the built components in Chromium, Firefox and WebKit against a mock of the client API. jsdom
   # has no layout, no cascade and no real focus model, and two defects shipped through it.

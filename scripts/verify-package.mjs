@@ -36,7 +36,8 @@ import { join, resolve } from 'node:path'
 const PACKAGE_DIR = process.cwd()
 const REPO_ROOT = resolve(PACKAGE_DIR, '..', '..')
 const manifest = JSON.parse(readFileSync(join(PACKAGE_DIR, 'package.json'), 'utf8'))
-const expected = JSON.parse(readFileSync(join(PACKAGE_DIR, 'scripts', 'expected-exports.json'), 'utf8')).runtime
+const expectations = JSON.parse(readFileSync(join(PACKAGE_DIR, 'scripts', 'expected-exports.json'), 'utf8'))
+const expected = expectations.runtime
 const smoke = readFileSync(join(PACKAGE_DIR, 'scripts', 'consumer-smoke.ts'), 'utf8')
 
 /** Where the package's metadata has to point. A private repository here would ship three
@@ -191,6 +192,25 @@ if (missing.length || undeclared.length) process.exit(1)
     // the thing these packages use.
     run('npx', ['tsc', '-p', 'tsconfig.node16.json'], consumer)
   })
+
+  if (expectations.clientDirective) {
+    check("the entry points start with the 'use client' directive", () => {
+      // A package made of hooks and components that is imported from a Next.js Server Component dies in
+      // the consumer's build with `createContext is not a function` unless its entry is a client module.
+      // A bundler drops a directive written in the source, so it is added as a banner, and this is the
+      // only place that looks at what was published. The first statement is what counts: a directive
+      // after an import or a function is just a string.
+      const problems = []
+      // Leading comments and whitespace are skipped; the first real statement must be the directive.
+      const leading = /^(?:\s+|\/\/[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\/)*/
+      for (const entry of [manifest.main, manifest.module].filter(Boolean)) {
+        const text = readFileSync(join(installed, entry), 'utf8')
+        const code = text.slice(leading.exec(text)[0].length)
+        if (!/^(['"])use client\1/.test(code)) problems.push(`${entry} does not start with 'use client'`)
+      }
+      if (problems.length) throw new Error(problems.join('\n'))
+    })
+  }
 
   check('depends on no package that is never published', () => {
     // `@hermesihq/inbox-ui` is private and bundled into this package. If the bundler ever

@@ -1,4 +1,5 @@
 {
+  "clientDirective": true,
   "runtime": [
     "HERMS_CHANNELS",
     "HermsApiError",
