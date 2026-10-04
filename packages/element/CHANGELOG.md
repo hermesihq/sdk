@@ -14,6 +14,21 @@ CSS variables listed in the README are the public API.
 Each release lists breaking changes first, because that is the only section that
 decides whether an upgrade is a decision or a formality.
 
+## 0.2.0 (2026-10-04)
+
+### Changed (read this first)
+
+- **The notification list is a list of buttons, not an ARIA menu.** The rows no longer have `role="menu"`, `role="menuitem"` or
+  `role="none"`: each row holds two controls, the notification and its archive button, and a menu may own only menu items.
+  An automated accessibility check (axe-core) flagged the menu form (`aria-required-children`) and finds nothing in the list
+  form. If your tests or styles select `[role="menuitem"]`, select the `item` part or `.herms-inbox__item` instead. Every
+  control is now reachable with `Tab`; the arrow keys, `Home` and `End` still move between notifications.
+
+### Changed
+
+- The forced-colours rules for the badge and the unread dot moved into the stylesheet shared with `@hermesihq/react`, so
+  both have them. Nothing changes for the element.
+
 ## 0.1.0 (2026-10-02)
 
 First release. `<hermes-inbox>`: the bell and panel of `@hermesihq/react`'s `<HermsInbox />`,

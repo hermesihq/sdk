@@ -40,16 +40,3 @@
 .herms-inbox__panel[data-positioning] {
   visibility: hidden;
 }
-
-/* The unread dot and the badge are colour alone; in forced colours that colour is gone. */
-@media (forced-colors: active) {
-  .herms-inbox__badge {
-    border: 1px solid CanvasText;
-    background: Canvas;
-    color: CanvasText;
-  }
-
-  .herms-inbox__item[data-unread='true'] .herms-inbox__item-title::before {
-    background: CanvasText;
-  }
-}

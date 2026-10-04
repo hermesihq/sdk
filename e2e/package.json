@@ -10,7 +10,8 @@
     "check": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "~1.61.0",
-    "esbuild": "^0.27.0"
+    "esbuild": "^0.28.1"
   }
 }

@@ -1,5 +1,5 @@
 import { expect, test } from './fixtures'
-import { bell, drawn, open, panel, show } from './helpers'
+import { bell, drawn, notifications, open, panel, show } from './helpers'
 
 /**
  * What belongs to `<hermes-inbox>` alone. Everything the two implementations share is in
@@ -218,14 +218,14 @@ test.describe('events and methods', () => {
     await show(page, { items: [{ id: 'inb_1', title: 'Go', action_url: '/__health' }] })
     await open(page)
 
-    await Promise.all([page.waitForURL('**/__health'), page.getByRole('menuitem', { name: /Go/ }).click()])
+    await Promise.all([page.waitForURL('**/__health'), notifications(page).filter({ hasText: /Go/ }).click()])
   })
 
   test('hermes-item-click is the host\'s to cancel, and then the element stays where it is', async ({ page }) => {
     const inbox = await show(page, { query: { prevent: '1' }, items: [{ id: 'inb_1', title: 'Go', action_url: '/__health' }] })
     await open(page)
 
-    await page.getByRole('menuitem', { name: /Go/ }).click()
+    await notifications(page).filter({ hasText: /Go/ }).click()
 
     await expect.poll(async () => (await inbox.requests()).includes('POST /inbox/inb_1/read')).toBe(true)
     expect(page.url()).toContain('/pages/element-inbox.html')
@@ -242,7 +242,7 @@ test.describe('events and methods', () => {
     })
     await open(page)
 
-    await page.getByRole('menuitem').first().click()
+    await notifications(page).first().click()
     await expect.poll(async () => (await inbox.requests()).includes('POST /inbox/inb_1/read')).toBe(true)
 
     await expect.poll(() => page.evaluate(() => (window as unknown as { events: string[] }).events)).toContain('hermes-error')

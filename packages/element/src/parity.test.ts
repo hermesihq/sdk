@@ -37,12 +37,27 @@ function titles(file: string): Map<string, Set<string>> {
 
 /** Cases the React component has and the element deliberately does not, and why. */
 const REACT_ONLY: Record<string, string> = {
+  'reports a failed archive, a failed read and a failed seen-marking the same way':
+    'The element reports every failure through the same hermes-error event, whichever action failed, and its one case for it is the shared one above.',
+  'calls the latest onError, not the one the component first rendered with':
+    'React has an onError prop that can change between renders; the element has no prop, only an event a host listens for.',
+  'logs a failed mutation when the host gave no onError':
+    'The element reports every failure as a bubbling hermes-error event, which needs no handler and never logs by itself; React has a callback prop and so has a default for when it is omitted.',
   'is not inside the bell, which is why it has to carry its own theme':
     'Radix portals the panel under <body>. The element keeps the panel in the same shadow root as the bell, so the defect this case guards cannot occur.',
   'carries the theme the host passed':
     'The element has no `theme` property: a host sets the --herms-* variables on it or an ancestor, and the end-to-end suite checks that reaches the panel.',
   'carries the host class, so that one rule themes the bell and the panel':
     'The element has no className to forward: the host styles the element itself, and its variables inherit.',
+}
+
+/** Cases the element has in a group both files share and React deliberately does not, and why. */
+const ELEMENT_ONLY: Record<string, string> = {
+  'reports what is on screen as seen once, however often the list changes':
+    'React marks what is shown as seen in an effect covered by the panel cases above; the element has to dedupe across its own render passes.',
+  'says when it opens and closes': 'hermes-open and hermes-close are events of the element; React has no such surface.',
+  'reports a list that failed to load': 'React renders the error state and offers a retry (see the panel cases); the element also raises hermes-error.',
+  'bubbles, so a page can listen on an ancestor': 'A property of DOM events; React callbacks do not bubble.',
 }
 
 describe('parity with the React component', () => {
@@ -75,7 +90,7 @@ describe('parity with the React component', () => {
     for (const [group, cases] of element) {
       const other = react.get(group)
       if (!other) continue
-      for (const title of cases) if (!other.has(title)) extra.push(`${group} > ${title}`)
+      for (const title of cases) if (!other.has(title) && !(title in ELEMENT_ONLY)) extra.push(`${group} > ${title}`)
     }
     expect(extra, 'element cases in a shared group with no React counterpart').toEqual([])
   })
@@ -85,5 +100,12 @@ describe('parity with the React component', () => {
     expect(stale, 'REACT_ONLY entries for cases that no longer exist').toEqual([])
     const nowShared = Object.keys(REACT_ONLY).filter((title) => [...element.values()].some((cases) => cases.has(title)))
     expect(nowShared, 'REACT_ONLY entries the element now has').toEqual([])
+  })
+
+  it('does not name an element-only difference that has since gone away', () => {
+    const stale = Object.keys(ELEMENT_ONLY).filter((title) => ![...element.values()].some((cases) => cases.has(title)))
+    expect(stale, 'ELEMENT_ONLY entries for cases that no longer exist').toEqual([])
+    const nowShared = Object.keys(ELEMENT_ONLY).filter((title) => [...react.values()].some((cases) => cases.has(title)))
+    expect(nowShared, 'ELEMENT_ONLY entries React now has').toEqual([])
   })
 })

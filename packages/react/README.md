@@ -51,8 +51,11 @@ client each render closes and reopens the real-time connection each render.
 
 ## `<HermsInbox />`
 
-A real `<button>` with an accessible name that includes the unread count, and a panel with
-arrow-key navigation, `Home` and `End`, and `Escape` to close.
+A real `<button>` with an accessible name that includes the unread count, and a panel that is a named dialog holding a
+list of buttons: arrow keys, `Home` and `End` move between notifications (every control is also reachable with `Tab`), and
+`Escape` closes it. It is a list and not an ARIA menu because each row holds two controls, the notification and its archive
+button, and a menu may own only menu items. Windows high contrast mode is handled: the unseen badge and the unread dot,
+which are colour alone, keep an outline and a fill in the user's own colours.
 
 | Prop | Default | |
 |---|---|---|
@@ -62,6 +65,7 @@ arrow-key navigation, `Home` and `End`, and `Escape` to close.
 | `colorScheme` | `'auto'` | `'auto'` follows the visitor's OS setting; `'light'` or `'dark'` force one |
 | `locale` | `'en'` | `'en'` or `'fr'` |
 | `className` | | Added to the root element **and to the panel**, so one rule themes both |
+| `onError` | | Called with an `Error` (a `HermsApiError` when Hermesi refused) when something the person did fails: marking read, marking all read, archiving, or marking seen. The component shows nothing for these, because the list is the source of truth and the next refresh corrects it. Without it the error is logged with `console.error`. Never an unhandled rejection. |
 
 Everything else is reachable by overriding these CSS custom properties: `--herms-color-accent`,
 `--herms-color-accent-foreground`, `--herms-color-bg`, `--herms-color-border`,

@@ -349,3 +349,19 @@
   background: var(--_herms-hover);
   margin: 6px 10px;
 }
+
+/*
+ * Forced colours (Windows high contrast) replace every colour with the user's own, which removes the only thing
+ * that told an unread notification and the unseen badge from their surroundings. In the shared stylesheet so that the
+ * React component and the element both have it. */
+@media (forced-colors: active) {
+  .herms-inbox__badge {
+    border: 1px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+
+  .herms-inbox__item[data-unread='true'] .herms-inbox__item-title::before {
+    background: CanvasText;
+  }
+}

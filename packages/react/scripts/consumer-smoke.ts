@@ -1,4 +1,7 @@
 import { HermsClient, HERMS_CHANNELS, type HermsChannel } from '@hermesihq/react'
+// The stylesheet import the README asks for. Under `noUncheckedSideEffectImports` it is TS2882 unless the `./styles.css`
+// export carries a `types` condition, which is what this is here to catch.
+import '@hermesihq/react/styles.css'
 
 // Compiled by a throwaway consumer against the installed tarball, under two TypeScript
 // module resolutions. The client surface is imported from `@hermesihq/react` on purpose:

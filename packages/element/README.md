@@ -136,11 +136,13 @@ The bell is a real button named "Notifications, N unread", with `aria-expanded`,
 region announces count changes. The panel is a named, non-modal dialog. Arrow Up and Down, Home and
 End move between notifications; Enter and Space open one; Escape closes the panel and returns the
 focus to the bell; moving the focus out of the element closes it too. The stylesheet has forced-colors
-rules for the badge and the unread dot, which are colour alone otherwise; they have not been
-checked in a real high-contrast setup.
+rules for the badge and the unread dot, which are colour alone otherwise; they are checked in an
+emulated high-contrast setup in Chromium and Firefox, not on Windows itself.
 
-The list uses `role="menu"` as `@hermesihq/react` does; whether a plain list of buttons would read
-better is untested with real screen readers, and the two will change together.
+The list is a plain list of buttons, as in `@hermesihq/react`, and not an ARIA menu: each row holds two
+controls, the notification and its archive button, and a menu may own only menu items. This was
+measured with an automated checker (axe-core), which flagged the menu form in the element and finds
+nothing in the list form; it has not been tried with a real screen reader.
 
 ## What it does not do
 

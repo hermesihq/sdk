@@ -1,5 +1,5 @@
 import { expect, test } from './fixtures'
-import { bell, drawn, open, panel, show } from './helpers'
+import { bell, drawn, notifications, open, panel, show } from './helpers'
 
 /**
  * The inbox as published, in a real engine, in both of its implementations: `<HermsInbox />` from
@@ -118,7 +118,7 @@ test.describe('the panel as a dialog', () => {
     await show(page)
     await open(page)
 
-    await expect(page.getByRole('menuitem').first()).toBeFocused()
+    await expect(notifications(page).first()).toBeFocused()
   })
 
   test('puts the focus on the first notification when the list arrives after the panel opened', async ({ page }) => {
@@ -132,11 +132,11 @@ test.describe('the panel as a dialog', () => {
     // The setup this case exists for: opened, and nothing to focus yet. The list is held by the
     // mock until released, so no engine can win the race and pass while testing nothing (WebKit
     // did, with a timer).
-    await expect(page.getByRole('menuitem')).toHaveCount(0)
+    await expect(notifications(page)).toHaveCount(0)
     await inbox.release()
-    await expect(page.getByRole('menuitem').first()).toBeVisible()
+    await expect(notifications(page).first()).toBeVisible()
 
-    await expect(page.getByRole('menuitem').first()).toBeFocused()
+    await expect(notifications(page).first()).toBeFocused()
   })
 
   test('does not take the focus back from somewhere the person moved it', async ({ page }) => {
@@ -146,9 +146,9 @@ test.describe('the panel as a dialog', () => {
     await open(page)
     const close = page.getByRole('button', { name: 'Close' })
     await close.focus()
-    await expect(page.getByRole('menuitem')).toHaveCount(0)
+    await expect(notifications(page)).toHaveCount(0)
     await inbox.release()
-    await expect(page.getByRole('menuitem').first()).toBeVisible()
+    await expect(notifications(page).first()).toBeVisible()
 
     await expect(close).toBeFocused()
   })
@@ -202,7 +202,7 @@ test.describe('the panel as a dialog', () => {
   test('moves between notifications with the arrow keys, Home and End', async ({ page }) => {
     await show(page)
     await open(page)
-    const items = page.getByRole('menuitem')
+    const items = notifications(page)
 
     await page.keyboard.press('ArrowDown')
     await expect(items.nth(1)).toBeFocused()
@@ -338,27 +338,25 @@ test.describe('when the server answers with the wrong thing', () => {
     const inbox = await show(page, { scenario: { faultyRead: true } })
     await open(page)
 
-    await page.getByRole('menuitem').first().click()
+    await notifications(page).first().click()
     await expect.poll(async () => (await inbox.requests()).includes('POST /inbox/inb_1/read')).toBe(true)
 
     await expect(page.locator('.herms-inbox__item-title').filter({ hasText: /\S/ })).toHaveCount(3)
     await expect(page.getByText('Order shipped')).toBeVisible()
   })
 
-  test('KNOWN GAP: the refusal is an unhandled rejection, with nothing shown to the person', async ({ page, flavor }) => {
+  test('the refusal reaches the host, and is not an unhandled rejection', async ({ page, flavor }) => {
     test.skip(flavor === 'element', 'The element reports it as a hermes-error event: see element.spec.ts.')
-    // Documents what happens today, so that fixing it is a visible change rather than an accident.
-    // The component calls `void markRead(...)`, so any failed mutation is a rejection nobody
-    // handles. When the component reports a failure, this test should be rewritten, not deleted.
+    // The component used to call `void markRead(...)`, so a failed action was a rejection nobody could handle and the host
+    // never heard of it. It now goes to `onError`, which the page records.
     const inbox = await show(page, { scenario: { faultyRead: true } })
     await open(page)
 
-    await page.getByRole('menuitem').first().click()
+    await notifications(page).first().click()
     await expect.poll(async () => (await inbox.requests()).includes('POST /inbox/inb_1/read')).toBe(true)
 
-    await expect
-      .poll(() => page.evaluate(() => (window as unknown as { rejections: string[] }).rejections))
-      .toContain('unexpected_response')
+    await expect.poll(() => page.evaluate(() => (window as unknown as { reported: string[] }).reported)).toContain('unexpected_response')
+    expect(await page.evaluate(() => (window as unknown as { rejections: string[] }).rejections)).toEqual([])
     await expect(page.getByRole('alert')).toHaveCount(0)
   })
 })

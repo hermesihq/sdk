@@ -1,6 +1,6 @@
 {
   "name": "@hermesihq/element",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A <hermes-inbox> custom element: Hermesi's notification bell and panel for any page, with no framework.",
   "type": "module",
   "license": "MIT",
