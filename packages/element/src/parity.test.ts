@@ -39,7 +39,7 @@ function titles(file: string): Map<string, Set<string>> {
 const REACT_ONLY: Record<string, string> = {
   'reports a failed archive, a failed read and a failed seen-marking the same way':
     'The element reports every failure through the same hermes-error event, whichever action failed, and its one case for it is the shared one above.',
-  'calls the latest onError, not the one the action started with':
+  'calls the latest onError, not the one the component first rendered with':
     'React has an onError prop that can change between renders; the element has no prop, only an event a host listens for.',
   'logs a failed mutation when the host gave no onError':
     'The element reports every failure as a bubbling hermes-error event, which needs no handler and never logs by itself; React has a callback prop and so has a default for when it is omitted.',
