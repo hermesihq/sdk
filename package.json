@@ -1,7 +1,7 @@
 {
   "name": "hermesi-sdk",
   "private": true,
-  "description": "Client SDKs for Hermesi: a framework-free core and its React bindings.",
+  "description": "Client SDKs for Hermesi: a framework-free core, its React bindings, and a server-side client.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -9,6 +9,7 @@
   },
   "workspaces": [
     "packages/js",
+    "packages/node",
     "packages/react",
     "packages/inbox-ui",
     "packages/element",
@@ -18,7 +19,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "npm run build -w @hermesihq/js && npm run build -w @hermesihq/react && npm run build -w @hermesihq/element",
+    "build": "npm run build -w @hermesihq/js && npm run build -w @hermesihq/react && npm run build -w @hermesihq/element && npm run build -w @hermesihq/node",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm test --workspaces --if-present",
     "verify:package": "npm run verify:package --workspaces --if-present",

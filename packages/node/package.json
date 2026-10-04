@@ -1,0 +1,52 @@
+{
+  "name": "@hermesihq/node",
+  "version": "0.1.0",
+  "description": "Server-side client for Hermesi: publish events, mint subscriber tokens and preference links. No dependencies; Node 20 and later.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hermesihq/sdk.git",
+    "directory": "packages/node"
+  },
+  "homepage": "https://github.com/hermesihq/sdk/tree/main/packages/node#readme",
+  "bugs": "https://github.com/hermesihq/sdk/issues",
+  "keywords": [
+    "hermesi",
+    "notifications",
+    "sdk",
+    "server",
+    "nextjs",
+    "express"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "verify:package": "node ../../scripts/verify-package.mjs",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "prepublishOnly": "npm run typecheck && npm run build"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

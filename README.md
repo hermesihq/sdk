@@ -1,15 +1,17 @@
 # Hermesi SDK
 
-Client libraries for Hermesi's in-app inbox.
+Client libraries for Hermesi: the in-app inbox for pages, and a client for your server.
 
 | Package | For | |
 |---|---|---|
 | [`@hermesihq/js`](packages/js) | Any page: plain JavaScript, Vue, Angular, Svelte, or a server | An API client, and framework-free stores for the unread count, the inbox list and notification preferences |
 | [`@hermesihq/react`](packages/react) | React 18 and newer | A ready-made bell and panel, and hooks. A thin binding over `@hermesihq/js` |
+| [`@hermesihq/node`](packages/node) | Your server: Node 20+, Next.js route handlers, workers | Publish events, mint subscriber tokens and preference links, with retries and idempotency built in |
 
 ```sh
 npm install @hermesihq/js      # no framework
 npm install @hermesihq/react   # React
+npm install @hermesihq/node    # your server, to publish events
 ```
 
 Each package's README has a working example. The state a UI needs is written once, in
