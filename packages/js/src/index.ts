@@ -40,6 +40,15 @@ export {
   type HermsRegisterChannelParams,
 } from './types'
 
+export {
+  HermsWebPushError,
+  disableWebPush,
+  enableWebPush,
+  isWebPushSupported,
+  type DisableWebPushOptions,
+  type EnableWebPushOptions,
+  type HermsWebPushErrorCode,
+} from './webPush'
 export { HermsSession, type HermsStoreHost } from './HermsSession'
 export { InboxStore, type InboxFilter, type InboxState } from './InboxStore'
 export { CountsStore, type CountsState } from './CountsStore'

@@ -1,0 +1,8 @@
+{
+  "dist/service-worker.global.js": {
+    "maxBytes": 3000,
+    "maxGzipBytes": 1500,
+    "global": "HermesiServiceWorker",
+    "exports": ["installHermesiPush", "notificationFor", "parsePushPayload", "resolveClickTarget"]
+  }
+}

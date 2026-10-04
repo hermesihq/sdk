@@ -137,6 +137,73 @@ await client.deregisterChannel('telegram', '1755765234')
 `HERMS_CHANNELS` lists every channel an identity can be registered for, as an array a
 preference centre can iterate.
 
+## Browser push (Web Push)
+
+Two small pieces, one on the page and one in a service worker. Web Push carries bytes and nothing
+else, so what appears on screen is decided by code on your site: the service worker half is that
+code, already written.
+
+**Before you start**, configure a Web Push provider in Hermesi. Its details show the **VAPID public
+key**, with a Copy button. That value, and nothing else from the provider, goes into your page.
+
+**1. The service worker.** With a bundler:
+
+```js
+// sw.js
+import { installHermesiPush } from '@hermesihq/js/service-worker'
+
+installHermesiPush(self, { icon: '/icon-192.png' })
+```
+
+Without one, serve `dist/service-worker.global.js` from your own origin, or load it from a CDN. It
+installs itself when it runs:
+
+```js
+// sw.js
+self.HERMESI_PUSH_OPTIONS = { icon: '/icon-192.png' }
+importScripts('https://cdn.jsdelivr.net/npm/@hermesihq/js@0.2/dist/service-worker.global.js')
+```
+
+It shows the notification Hermesi sent (`title`, `body`, `image`) and, when it is clicked, opens
+its link: in a tab already showing it if there is one, in a new tab otherwise. Only `http` and
+`https` links are opened. The options are all optional: `icon` and `badge` (Hermesi does not send
+either), and `fallbackTitle` for a push that arrives with none.
+
+**2. The page.** Call this from a click or tap handler, because it may show the permission prompt:
+
+```ts
+import { HermsClient, HermsWebPushError, enableWebPush, isWebPushSupported } from '@hermesihq/js'
+
+if (isWebPushSupported()) {
+  button.onclick = async () => {
+    try {
+      await enableWebPush(client, {
+        vapidPublicKey: 'B...', // from the provider's details in Hermesi
+        serviceWorkerUrl: '/sw.js',
+      })
+    } catch (error) {
+      if (error instanceof HermsWebPushError && error.code === 'permission_denied') {
+        // blocked in the browser; asking again does nothing, so say where to unblock it
+      }
+    }
+  }
+}
+```
+
+It is safe to call again on every page load: an existing subscription is reused and the registration
+is an upsert, which also reactivates a device Hermesi had marked invalid. If you rotate the VAPID key,
+the subscription made with the old one is replaced. Turn it off on sign-out, or when the person
+switches notifications off in your settings, with `disableWebPush(client)`: it tells Hermesi first,
+then unsubscribes the browser.
+
+`HermsWebPushError` is what the browser or the person decided. Its `code` is one of `unsupported`,
+`permission_denied`, `permission_dismissed`, `invalid_key`, `no_service_worker` and `no_keys`. A
+`HermsApiError` is Hermesi refusing the registration, and the browser subscription is kept so that
+calling again retries it.
+
+Safari on iPhone and iPad delivers Web Push only to a page that has been added to the home screen,
+so `isWebPushSupported()` is false in a plain tab there.
+
 ## What is deliberately absent
 
 There is no `unsubscribe()`, although the API has an unsubscribe route. That route is the

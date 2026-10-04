@@ -19,6 +19,19 @@ least one real integration exists.
 Each release lists breaking changes first, because that is the only section that decides
 whether an upgrade is a decision or a formality.
 
+## 0.2.0 (2026-10-03)
+
+### Added
+
+- **Browser push.** `enableWebPush(client, { vapidPublicKey, serviceWorkerUrl })` asks for
+  permission, subscribes the browser and registers it with Hermesi; `disableWebPush(client)` undoes
+  it; `isWebPushSupported()` says whether to offer it. A subscription made with an older VAPID key is
+  replaced, and calling `enableWebPush` on every page load is safe. Failures the browser or the
+  person decide are a `HermsWebPushError` with a `code`.
+- **`@hermesihq/js/service-worker`**: `installHermesiPush(self)` for a service worker, which shows
+  Hermesi's notifications and opens their links when clicked. Also published as a script,
+  `dist/service-worker.global.js` (about 2 KB), for a service worker with no build step.
+
 ## 0.1.1 (2026-10-01)
 
 ### Fixed

@@ -1,7 +1,7 @@
 {
   "name": "@hermesihq/js",
-  "version": "0.1.1",
-  "description": "Framework-free client for Hermesi's in-app inbox: an API client and the stores a Vue, Angular, Svelte or plain JavaScript page binds to.",
+  "version": "0.2.0",
+  "description": "Framework-free client for Hermesi: the in-app inbox as an API client and stores, and browser push (Web Push) from the page and the service worker.",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -15,7 +15,9 @@
     "hermesi",
     "notifications",
     "inbox",
-    "sdk"
+    "sdk",
+    "push",
+    "web-push"
   ],
   "sideEffects": false,
   "files": [
@@ -32,10 +34,16 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
-    }
+    },
+    "./service-worker": {
+      "types": "./dist/service-worker.d.ts",
+      "import": "./dist/service-worker.js",
+      "require": "./dist/service-worker.cjs"
+    },
+    "./service-worker.global.js": "./dist/service-worker.global.js"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "node scripts/clean.mjs && tsup",
     "test": "vitest run",
     "verify:package": "node ../../scripts/verify-package.mjs",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",

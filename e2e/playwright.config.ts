@@ -38,7 +38,7 @@ export default defineConfig<{ flavor: Flavor }>({
       use: { ...device, flavor },
       // The platform probes measure the browser, not our code: once per engine is enough. The
       // element's own cases make no sense for React.
-      testIgnore: flavor === 'element' ? /platform\.spec/ : /(element|script-tag)\.spec/,
+      testIgnore: flavor === 'element' ? /(platform|service-worker)\.spec/ : /(element|script-tag)\.spec/,
     })),
   ),
 })

@@ -47,7 +47,7 @@
     "prepublishOnly": "npm run typecheck && npm run build"
   },
   "dependencies": {
-    "@hermesihq/js": "^0.1.1"
+    "@hermesihq/js": "^0.2.0"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",
