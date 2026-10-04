@@ -109,6 +109,49 @@ documented. The parts worth knowing here:
 Importing this package touches no DOM, and a component using the hooks renders its loading
 state on the server. Nothing connects and no request is made until it mounts in the browser.
 
+### Next.js (App Router)
+
+The package is a client module (its entry starts with `'use client'`), so a Server Component can render
+`<HermsInbox />` directly. A `HermsClient` holds functions, so it cannot be made in a Server Component and
+passed down: make it, and the provider, in a small client component, and keep the pages on the server.
+
+```tsx
+// app/providers.tsx
+'use client'
+import { useMemo, type ReactNode } from 'react'
+import { HermsClient, HermsProvider } from '@hermesihq/react'
+
+export function Providers({ children }: { children: ReactNode }) {
+  const client = useMemo(
+    () =>
+      new HermsClient({
+        apiBaseUrl: 'https://your-hermesi-host/v1/client',
+        publicKey: 'hm_pk_...',
+        getSubscriberToken: async () => (await (await fetch('/api/token')).json()).token, // see below
+      }),
+    [],
+  )
+  return <HermsProvider client={client}>{children}</HermsProvider>
+}
+```
+
+```tsx
+// app/layout.tsx: a Server Component
+import '@hermesihq/react/styles.css'
+import { Providers } from './providers'
+// ...wrap {children} in <Providers>
+
+// app/page.tsx: a Server Component, no 'use client' needed
+import { HermsInbox } from '@hermesihq/react'
+export default function Page() { return <HermsInbox /> }
+```
+
+`/api/token` is a Route Handler that mints the subscriber token on your server with
+[`@hermesihq/node`](../node); the browser never sees your secret key. A Server Component that needs
+`HermsClient`, `HermsApiError`, `HERMS_CHANNELS` or `decodeSubscriberTokenExp` should import them from
+`@hermesihq/js`: from this package they arrive as client references. The repository builds exactly this
+application against the packed packages with `npm run smoke:next`.
+
 ## Also exported
 
 `HermsClient`, `HermsApiError`, `HERMS_CHANNELS` and `decodeSubscriberTokenExp`, with their
