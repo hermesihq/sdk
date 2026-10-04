@@ -33,6 +33,24 @@ jobs:
       # silently and fails at the consumer's first import, which is publish day.
       - run: npm run verify:package
 
+  # @hermesihq/node promises Node 20 and later, and the job above only runs 22. Its tests talk to a
+  # real HTTP server on localhost, so they exercise the runtime's own `fetch`, which is exactly the
+  # part that differs between releases.
+  node-versions:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["20", "22", "24"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: "npm"
+      - run: npm ci
+      - run: npm test -w @hermesihq/node
+
   # The packages job proves the source and the artefact; this proves what a person sees. It runs
   # the built components in Chromium, Firefox and WebKit against a mock of the client API. jsdom
   # has no layout, no cascade and no real focus model, and two defects shipped through it.

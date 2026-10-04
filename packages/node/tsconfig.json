@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": ["src"],
+  // Tests are typechecked by `tsconfig.test.json`, which grants them node types. The published
+  // source deliberately has none: this package runs on anything with `fetch` and Web Crypto, and a
+  // source that can reach `node:fs` is one that eventually does.
+  "exclude": ["src/**/*.test.ts", "src/testServer.ts"]
+}
