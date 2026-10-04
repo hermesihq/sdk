@@ -12,7 +12,7 @@ integrations.
 
 `1.0.0` is the commitment that a breaking change requires a major bump. It waits until at least one real integration exists.
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-10-04)
 
 First release.
 
