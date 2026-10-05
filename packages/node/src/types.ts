@@ -26,9 +26,9 @@ export interface TriggerOptions {
    */
   idempotencyKey?: string
   actor?: Actor
-  /** Hold the event back for a duration such as `"15m"`. */
+  /** Hold the event back for an ISO 8601 duration such as `"PT15M"` (not `"15m"`). Not with `sendAt`; at most 30 days. */
   delay?: string
-  /** Hold the event back until an instant: a `Date`, or an ISO 8601 string with an offset. */
+  /** Hold the event back until an instant: a `Date`, or an ISO 8601 string with an offset. Not with `delay`; at most 30 days ahead. */
   sendAt?: Date | string
   override?: Record<string, unknown>
   tenant?: string

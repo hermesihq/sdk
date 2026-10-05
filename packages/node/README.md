@@ -61,7 +61,16 @@ body within 24 hours returns the original answer, and `result.replayed` is `true
 
 ### Other options
 
-`{ actor: { externalId, name }, delay: '15m', sendAt: new Date(...), override: {...}, tenant: '...' }`.
+`{ actor: { externalId, name }, delay: 'PT15M', sendAt: new Date(...), override: {...}, tenant: '...' }`.
+
+### Scheduling
+
+`delay` holds the event back for an ISO 8601 duration (`PT15M`, `PT1H30M`, `P1D`: **not** `15m`) and `sendAt` until an instant
+(a `Date`, or an ISO 8601 string with an offset). Give one, not both, at most 30 days ahead. A time already past runs at once. The run starts within about a minute after
+its time, not at the second. A request the server cannot honour is refused with `422 invalid_schedule`: it is never sent
+immediately instead. Pass your own idempotency key and retrying a scheduled event does not schedule it twice.
+
+`override` and `tenant` are accepted by the API but not acted on yet.
 
 A payload may hold `Date` (sent as ISO text) and `bigint` (sent as a string). Values JSON would lose without telling you are
 **refused** before anything is sent: a `Map`, a `Set`, `NaN`, `Infinity`, an invalid `Date`, a function or a symbol. A `Map` that
