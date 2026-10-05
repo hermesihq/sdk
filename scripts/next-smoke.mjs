@@ -16,7 +16,8 @@
  *   app/api/token/route.ts   a Route Handler that mints a subscriber token with @hermesihq/node.
  *   app/api/edge-token/...   the same on Next's Edge runtime, which has Web Crypto and no node:.
  *
- * Run: `npm run smoke:next` (needs network, for next). `--next=14` picks the Next.js major (default 16);
+ * Run: `npm run smoke:next` (needs network, for next). `--from-npm` installs what npm serves instead of packing this
+ * repository: the check to run after a release, on the packages as published. `--next=14` picks the Next.js major (default 16);
  * 14 runs on React 18, 15 and 16 on React 19. `--bundler=webpack` builds a Next 16 application with
  * webpack instead of Turbopack, its default; earlier majors build with webpack, the only bundler
  * their production build has.
@@ -30,6 +31,7 @@ import { join, resolve } from 'node:path'
 const ROOT = resolve(import.meta.dirname, '..')
 const arg = (name, fallback) => (process.argv.find((a) => a.startsWith(`--${name}=`)) ?? `--${name}=${fallback}`).split('=')[1]
 const NEXT_MAJOR = Number(arg('next', '16'))
+const FROM_NPM = process.argv.includes('--from-npm')
 const REACT_MAJOR = NEXT_MAJOR >= 15 ? 19 : 18
 const PORT = 3217
 const bundler = NEXT_MAJOR >= 16 ? arg('bundler', 'turbopack') : 'webpack'
@@ -53,14 +55,20 @@ function files(map) {
 }
 
 try {
-  console.log('building the packages…')
-  run('npm', ['run', 'build'], ROOT)
+  // The packages the application installs: tarballs of this repository, or what npm serves under their names.
+  let packages
+  if (FROM_NPM) {
+    packages = ['@hermesihq/js', '@hermesihq/react', '@hermesihq/node']
+  } else {
+    console.log('building the packages…')
+    run('npm', ['run', 'build'], ROOT)
 
-  console.log('packing…')
-  const tarballs = ['js', 'react', 'node'].map((name) => {
-    const [{ filename }] = JSON.parse(run('npm', ['pack', '--json', '--pack-destination', workspace], join(ROOT, 'packages', name)))
-    return join(workspace, filename)
-  })
+    console.log('packing…')
+    packages = ['js', 'react', 'node'].map((name) => {
+      const [{ filename }] = JSON.parse(run('npm', ['pack', '--json', '--pack-destination', workspace], join(ROOT, 'packages', name)))
+      return join(workspace, filename)
+    })
+  }
 
   mkdirSync(app)
   files({
@@ -141,8 +149,8 @@ export async function GET() {
 `,
   })
 
-  console.log(`installing next@${NEXT_MAJOR} (React ${REACT_MAJOR}) and the tarballs…`)
-  run('npm', ['install', '--silent', ...tarballs, `next@${NEXT_MAJOR}`, `react@${REACT_MAJOR}`, `react-dom@${REACT_MAJOR}`, 'typescript@6', `@types/react@${REACT_MAJOR}`, `@types/react-dom@${REACT_MAJOR}`, '@types/node'], app)
+  console.log(`installing next@${NEXT_MAJOR} (React ${REACT_MAJOR}) and ${FROM_NPM ? 'the published packages from npm' : 'the tarballs'}…`)
+  run('npm', ['install', '--silent', ...packages, `next@${NEXT_MAJOR}`, `react@${REACT_MAJOR}`, `react-dom@${REACT_MAJOR}`, 'typescript@6', `@types/react@${REACT_MAJOR}`, `@types/react-dom@${REACT_MAJOR}`, '@types/node'], app)
 
   console.log(`next ${NEXT_MAJOR} build (${bundler})…`)
   const nextBin = join(app, 'node_modules', 'next', 'dist', 'bin', 'next')
