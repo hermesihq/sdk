@@ -150,7 +150,8 @@ export default function Page() { return <HermsInbox /> }
 [`@hermesihq/node`](../node); the browser never sees your secret key. A Server Component that needs
 `HermsClient`, `HermsApiError`, `HERMS_CHANNELS` or `decodeSubscriberTokenExp` should import them from
 `@hermesihq/js`: from this package they arrive as client references. The repository builds exactly this
-application against the packed packages with `npm run smoke:next`.
+application against the packed packages with `npm run smoke:next`, on Next.js 14 (React 18), 15 and 16 (React 19), App
+Router. The Pages Router is not tested.
 
 ## Also exported
 

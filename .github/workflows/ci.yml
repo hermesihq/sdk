@@ -54,14 +54,19 @@ jobs:
   # A real Next.js App Router application, built and run against the packed packages. The packages job
   # proves the artefact installs and imports; only a `next build` shows whether a Server Component can
   # import it (it could not, for want of a 'use client' directive) and whether the Node package runs in a
-  # Route Handler on the Edge runtime. Both bundlers, because applications still use both.
+  # Route Handler on the Edge runtime. Next 14 (React 18), 15 and 16 (React 19), and for 16 both bundlers,
+  # because applications still use both. App Router only.
   nextjs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        bundler: [turbopack, webpack]
+        include:
+          - { next: 14, bundler: webpack }
+          - { next: 15, bundler: webpack }
+          - { next: 16, bundler: turbopack }
+          - { next: 16, bundler: webpack }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -69,7 +74,7 @@ jobs:
           node-version: "22"
           cache: "npm"
       - run: npm ci
-      - run: node scripts/next-smoke.mjs --bundler=${{ matrix.bundler }}
+      - run: node scripts/next-smoke.mjs --next=${{ matrix.next }} --bundler=${{ matrix.bundler }}
 
   # The packages job proves the source and the artefact; this proves what a person sees. It runs
   # the built components in Chromium, Firefox and WebKit against a mock of the client API. jsdom
