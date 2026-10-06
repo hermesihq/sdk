@@ -12,6 +12,14 @@ integrations.
 
 `1.0.0` is the commitment that a breaking change requires a major bump. It waits until at least one real integration exists.
 
+## Unreleased
+
+### Fixed
+
+- **The documentation showed `delay: '15m'`**, a format the server does not accept: `delay` is an ISO 8601 duration, `'PT15M'`.
+  It also did not say that the API ignored `sendAt` and `delay` until now; Hermesi now honours them (or refuses a request it
+  cannot honour with `422 invalid_schedule`). The README has a Scheduling section.
+
 ## 0.1.0 (2026-10-04)
 
 First release.
