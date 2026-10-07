@@ -16,6 +16,11 @@ export class HermesiError extends Error {
   override name = 'HermesiError'
 }
 
+/** A read was asked of a client in `simulate` mode. Nothing was sent, so there is nothing to read back. */
+export class HermesiSimulationError extends HermesiError {
+  override name = 'HermesiSimulationError'
+}
+
 /** Hermesi could not be reached: DNS, a refused or dropped connection, or a timeout, after the retries were used up. */
 export class HermesiConnectionError extends HermesiError {
   override name = 'HermesiConnectionError'
@@ -80,6 +85,11 @@ export class NotFoundError extends HermesiAPIError {
   override name = 'NotFoundError'
 }
 
+/** 409: an idempotency key that was already used with a different request body (`idempotency_key_reused`). */
+export class ConflictError extends HermesiAPIError {
+  override name = 'ConflictError'
+}
+
 /** 400 or 422: the request was refused as malformed; `detail` names the fields. */
 export class ValidationError extends HermesiAPIError {
   override name = 'ValidationError'
@@ -102,6 +112,7 @@ const BY_STATUS: Record<number, ErrorClass> = {
   401: AuthenticationError,
   403: ForbiddenError,
   404: NotFoundError,
+  409: ConflictError,
   422: ValidationError,
   429: RateLimitError,
 }
