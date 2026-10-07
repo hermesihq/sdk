@@ -13,12 +13,14 @@
  *     HERMESI_LIVE_SUBSCRIBER=user_1 \
  *     npx vitest run src/live.test.ts
  *
- * The subscriber must already exist in that environment.
+ * The subscriber must already exist in that environment. The tests that send a direct message or write preferences also need, in that
+ * environment, a published `sms` template whose key is HERMESI_LIVE_SMS_TEMPLATE (its text may use `{{ payload.code }}`) and a
+ * non-critical category whose key is HERMESI_LIVE_CATEGORY; without them those tests are skipped.
  */
 
 import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { AuthenticationError, Hermesi, HermesiConnectionError, NotFoundError, ValidationError } from './index.ts'
+import { AuthenticationError, ConflictError, Hermesi, HermesiConnectionError, NotFoundError, ValidationError } from './index.ts'
 
 const env = process.env
 const URL = env.HERMESI_LIVE_URL ?? ''
@@ -26,6 +28,8 @@ const SECRET = env.HERMESI_LIVE_SECRET_KEY ?? ''
 const PUBLIC = env.HERMESI_LIVE_PUBLIC_KEY ?? ''
 const ENVIRONMENT = env.HERMESI_LIVE_ENVIRONMENT_ID ?? ''
 const SUBSCRIBER = env.HERMESI_LIVE_SUBSCRIBER ?? ''
+const SMS_TEMPLATE = env.HERMESI_LIVE_SMS_TEMPLATE ?? ''
+const CATEGORY = env.HERMESI_LIVE_CATEGORY ?? ''
 
 describe.skipIf(!(URL && SECRET && PUBLIC && ENVIRONMENT && SUBSCRIBER))('against a real Hermesi', () => {
   // Built in a hook: the body of a skipped `describe` still runs, and a client with no key throws.
@@ -135,5 +139,179 @@ describe.skipIf(!(URL && SECRET && PUBLIC && ENVIRONMENT && SUBSCRIBER))('agains
     const lost = new Hermesi({ apiKey: SECRET, baseUrl: 'http://127.0.0.1:9', retry: { maxRetries: 0 }, timeoutMs: 2000 })
 
     await expect(lost.events.trigger('order.shipped', SUBSCRIBER)).rejects.toBeInstanceOf(HermesiConnectionError)
+  })
+
+  it('reads an event back with its notification', async () => {
+    const sent = await live.events.trigger('order.shipped', SUBSCRIBER, { orderId: 'live' })
+
+    const run = await live.events.get(sent.eventId)
+
+    expect(run.eventId).toBe(sent.eventId)
+    expect(run.name).toBe('order.shipped')
+    expect(run.payload).toEqual({ orderId: 'live' })
+    expect(run.notifications.map((n) => n.externalId)).toEqual([SUBSCRIBER])
+  })
+
+  it('an event that does not exist is not found', async () => {
+    const error = (await live.events.get('evt_01DOESNOTEXIST00000000000').catch((e: unknown) => e)) as NotFoundError
+
+    expect(error).toBeInstanceOf(NotFoundError)
+    expect(error.code).toBe('event_not_found')
+  })
+
+  it('creates, reads, updates and deletes a subscriber', async () => {
+    const id = unique()
+
+    const created = await live.subscribers.put(id, { email: 'Live@Example.test', firstName: 'Live', locale: 'fr', data: { plan: 'pro', seats: 3 } })
+    expect(created.externalId).toBe(id)
+    expect(created.id).toMatch(/^sub_/)
+    expect(created.email, 'stored lower-cased').toBe('live@example.test')
+    expect(created.data).toEqual({ plan: 'pro', seats: 3 })
+
+    const unchanged = await live.subscribers.put(id, { locale: 'en' })
+    expect([unchanged.locale, unchanged.firstName, unchanged.email], 'a field left out is left alone').toEqual(['en', 'Live', 'live@example.test'])
+
+    const cleared = await live.subscribers.put(id, { firstName: null })
+    expect([cleared.firstName, cleared.email], 'null clears one field and only that').toEqual([null, 'live@example.test'])
+
+    expect((await live.subscribers.put(id, { data: { plan: 'free' } })).data, 'data replaces').toEqual({ plan: 'free' })
+    expect((await live.subscribers.get(id)).data).toEqual({ plan: 'free' })
+    expect((await live.subscribers.patch(id, { phoneE164: '+237690000000' })).phoneE164).toBe('+237690000000')
+
+    await live.subscribers.delete(id)
+    await live.subscribers.delete(id)
+    await expect(live.subscribers.get(id)).rejects.toBeInstanceOf(NotFoundError)
+  })
+
+  it('a value of the wrong shape is a ValidationError naming the field', async () => {
+    const error = (await live.subscribers.put(unique(), { phoneE164: '690000000' }).catch((e: unknown) => e)) as ValidationError
+
+    expect(error).toBeInstanceOf(ValidationError)
+    expect(error.detail.some((d) => (d.field ?? '').includes('phone_e164'))).toBe(true)
+  })
+
+  it('patching a subscriber that does not exist is not found', async () => {
+    const error = (await live.subscribers.patch(unique(), { locale: 'en' }).catch((e: unknown) => e)) as NotFoundError
+
+    expect(error).toBeInstanceOf(NotFoundError)
+    expect(error.code).toBe('subscriber_not_found')
+  })
+
+  it('works for every subscriber call with an id a path treats specially', async () => {
+    const id = `team/${unique()} é?#`
+
+    await live.subscribers.put(id, { locale: 'fr' })
+
+    expect((await live.subscribers.get(id)).externalId).toBe(id)
+    await live.subscribers.registerChannel(id, 'push', 'tok-1')
+    expect((await live.subscribers.get(id)).channels.map((c) => c.identifier)).toEqual(['tok-1'])
+    await live.subscribers.delete(id)
+  })
+
+  it('registers, lists and removes a device token', async () => {
+    const id = unique()
+    await live.subscribers.put(id)
+
+    const first = await live.subscribers.registerChannel(id, 'push', 'fcm-token-1', { platform: 'android' })
+    const again = await live.subscribers.registerChannel(id, 'push', 'fcm-token-1', { platform: 'android' })
+
+    expect([first.state, again.state]).toEqual(['active', 'active'])
+    expect((await live.subscribers.get(id)).channels.map((c) => [c.channel, c.identifier, c.metadata])).toEqual([
+      ['push', 'fcm-token-1', { platform: 'android' }],
+    ])
+    await live.subscribers.removeChannel(id, 'push', 'fcm-token-1')
+    await live.subscribers.removeChannel(id, 'push', 'fcm-token-1')
+    expect((await live.subscribers.get(id)).channels).toEqual([])
+    await live.subscribers.delete(id)
+  })
+
+  it('an identifier that is a URL survives the round trip', async () => {
+    // A Web Push endpoint is a URL: it has slashes, which a path segment can only carry percent-encoded.
+    const id = unique()
+    await live.subscribers.put(id)
+    const identifier = 'https://fcm.googleapis.com/fcm/send/abc:APA91b/def'
+
+    await live.subscribers.registerChannel(id, 'push', identifier, { transport: 'fcm' })
+    await live.subscribers.removeChannel(id, 'push', identifier)
+
+    expect((await live.subscribers.get(id)).channels).toEqual([])
+    await live.subscribers.delete(id)
+  })
+
+  it.skipIf(!CATEGORY)('writes, reads and removes preferences', async () => {
+    const id = unique()
+    await live.subscribers.put(id)
+
+    const after = await live.subscribers.updatePreferences(id, { global: { sms: false }, categories: { [CATEGORY]: { email: false, push: false } } })
+    expect(after).toEqual({ global: { sms: false }, categories: { [CATEGORY]: { email: false, push: false } } })
+
+    const removed = await live.subscribers.updatePreferences(id, { global: { sms: null }, categories: { [CATEGORY]: { email: null } } })
+    expect(removed).toEqual({ global: {}, categories: { [CATEGORY]: { push: false } } })
+    expect(await live.subscribers.preferences(id)).toEqual(removed)
+    await live.subscribers.delete(id)
+  })
+
+  it('an unknown category refuses the whole preference update', async () => {
+    const id = unique()
+    await live.subscribers.put(id)
+
+    const error = (await live.subscribers
+      .updatePreferences(id, { global: { sms: false }, categories: { no_such_category: { email: false } } })
+      .catch((e: unknown) => e)) as NotFoundError
+
+    expect(error).toBeInstanceOf(NotFoundError)
+    expect(error.code).toBe('category_not_found')
+    expect((await live.subscribers.preferences(id)).global, 'nothing was applied').toEqual({})
+    await live.subscribers.delete(id)
+  })
+
+  it.skipIf(!SMS_TEMPLATE)('sends a direct message, replays it and reads it back', async () => {
+    const id = unique()
+    await live.subscribers.put(id, { phoneE164: '+237690000001' })
+    const idempotencyKey = `live-${randomUUID()}`
+    const input = { channel: 'sms', recipient: id, template: SMS_TEMPLATE, data: { code: '480219' } }
+
+    const first = await live.messages.send(input, { idempotencyKey })
+    const second = await live.messages.send(input, { idempotencyKey })
+
+    expect(first.status).toBe('queued')
+    expect(first.replayed).toBe(false)
+    expect(first.messageId).toMatch(/^msg_/)
+    expect(second.replayed).toBe(true)
+    expect(second.messageId).toBe(first.messageId)
+    const message = await live.messages.get(first.messageId)
+    expect([message.id, message.channel]).toEqual([first.messageId, 'sms'])
+    await expect(live.messages.send({ ...input, data: { code: '111111' } }, { idempotencyKey })).rejects.toBeInstanceOf(ConflictError)
+    await live.subscribers.delete(id)
+  })
+
+  it.skipIf(!SMS_TEMPLATE)('reports a direct message to someone with no phone, instead of throwing', async () => {
+    const id = unique()
+    await live.subscribers.put(id, { email: 'nophone@example.test' })
+
+    const result = await live.messages.send({ channel: 'sms', recipient: id, template: SMS_TEMPLATE, data: { code: '1' } })
+
+    expect(result.status).toBe('skipped')
+    expect(result.messages[0]!.reason).toBe('no_channel_identity')
+    await live.subscribers.delete(id)
+  })
+
+  it('a direct message with an unknown template is not found', async () => {
+    const error = (await live.messages.send({ channel: 'sms', recipient: SUBSCRIBER, template: 'no-such-template' }).catch((e: unknown) => e)) as NotFoundError
+
+    expect(error).toBeInstanceOf(NotFoundError)
+    expect(error.code).toBe('template_not_found')
+  })
+
+  it('the server refuses inline content instead of ignoring it', async () => {
+    // The SDK has no `content` option at all, so this is asserted against the server directly.
+    const response = await fetch(`${URL}/v1/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${SECRET}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel: 'sms', recipient: SUBSCRIBER, template: 'x', content: { body: 'hi' } }),
+    })
+
+    expect(response.status).toBe(422)
+    expect(((await response.json()) as { error: { code: string } }).error.code).toBe('inline_content_not_supported')
   })
 })

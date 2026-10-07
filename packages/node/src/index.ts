@@ -1,10 +1,12 @@
-export { Hermesi, Events, Subscribers, Tokens, type HermesiOptions } from './client.ts'
+export { Hermesi, Events, Messages, Subscribers, Tokens, type HermesiOptions } from './client.ts'
 export {
   AuthenticationError,
+  ConflictError,
   ForbiddenError,
   HermesiAPIError,
   HermesiConnectionError,
   HermesiError,
+  HermesiSimulationError,
   NotFoundError,
   RateLimitError,
   ServerError,
@@ -15,15 +17,28 @@ export { mintSubscriberToken, MAX_TTL_SECONDS, type MintOptions } from './tokens
 export type { RetryOptions } from './retry.ts'
 export type {
   Actor,
+  ChannelIdentity,
   EventResult,
+  EventRun,
   FetchInit,
   FetchLike,
   FetchResponse,
+  Message,
+  MessageCreated,
+  MessageResult,
   NotificationSummary,
+  PreferenceChanges,
   PreferenceLink,
+  Preferences,
   Recipient,
+  RunNotification,
+  SendMessageInput,
+  SendMessageOptions,
+  SimulatedCall,
   SimulatedEvent,
   Subscriber,
+  SubscriberFields,
+  SubscriberProfile,
   TriggerOptions,
 } from './types.ts'
 export { VERSION } from './version.ts'

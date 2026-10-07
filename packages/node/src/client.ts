@@ -6,7 +6,17 @@
  * SDK that decides is a second implementation of it.
  */
 
-import { HermesiAPIError, HermesiConnectionError, errorFromResponse } from './errors.ts'
+import { HermesiAPIError, HermesiConnectionError, HermesiSimulationError, errorFromResponse } from './errors.ts'
+import {
+  isRecord,
+  parseChannelIdentity,
+  parseEventRun,
+  parseJson,
+  parseMessage,
+  parseMessageResult,
+  parsePreferences,
+  parseProfile,
+} from './read.ts'
 import {
   type RetryOptions,
   type RetryPolicy,
@@ -18,12 +28,23 @@ import {
 import { encodeJson } from './serialize.ts'
 import { type MintOptions, mintSubscriberToken } from './tokens.ts'
 import type {
+  ChannelIdentity,
   EventResult,
+  EventRun,
   FetchLike,
+  Message,
+  MessageResult,
   NotificationSummary,
+  PreferenceChanges,
   PreferenceLink,
+  Preferences,
   Recipient,
+  SendMessageInput,
+  SendMessageOptions,
+  SimulatedCall,
   SimulatedEvent,
+  SubscriberFields,
+  SubscriberProfile,
   TriggerOptions,
 } from './types.ts'
 import { VERSION } from './version.ts'
@@ -40,7 +61,10 @@ export interface HermesiOptions {
   /** How long one attempt may take, in milliseconds. Default 30000. Each retry gets its own. */
   timeoutMs?: number
   retry?: RetryOptions
-  /** Send nothing: record the events in `hermesi.simulated`. No key or URL needed. */
+  /**
+   * Send nothing: record the events in `hermesi.simulated` and every other write in `hermesi.simulatedCalls`. No key or URL needed.
+   * A read (`events.get`, `subscribers.get`, `messages.get`...) throws `HermesiSimulationError`: there is nothing to read.
+   */
   simulate?: boolean
   /** A `fetch` of your own. Default: the global one. */
   fetch?: FetchLike
@@ -89,17 +113,41 @@ function instant(value: Date | string): string {
   return value
 }
 
-/** A path segment for a subscriber's id. `.` and `..` are refused: a URL parser resolves them (even as `%2e`), which would aim the request at another endpoint. */
-function pathSegment(externalId: string): string {
-  if (!externalId) throw new TypeError('externalId is required')
-  if (externalId === '.' || externalId === '..') throw new TypeError(`externalId cannot be "${externalId}"`)
-  return encodeURIComponent(externalId)
+/** A path segment for an id. `.` and `..` are refused: a URL parser resolves them (even as `%2e`), which would aim the request at another endpoint. */
+function pathSegment(value: string, name = 'externalId'): string {
+  if (!value) throw new TypeError(`${name} is required`)
+  if (value === '.' || value === '..') throw new TypeError(`${name} cannot be "${value}"`)
+  return encodeURIComponent(value)
+}
+
+const PROFILE_FIELDS = {
+  email: 'email',
+  phoneE164: 'phone_e164',
+  firstName: 'first_name',
+  lastName: 'last_name',
+  locale: 'locale',
+  timezone: 'timezone',
+  avatarUrl: 'avatar_url',
+  data: 'data',
+} as const
+
+/** What was given: a value sets, `null` clears, `undefined` is left out of the body so the server leaves the field alone. An unknown name is a typo that would otherwise be silently dropped. */
+function profileBody(fields: SubscriberFields): Record<string, unknown> {
+  const body: Record<string, unknown> = {}
+  for (const [name, value] of Object.entries(fields)) {
+    if (!Object.hasOwn(PROFILE_FIELDS, name)) {
+      throw new TypeError(`unknown subscriber field "${name}"; expected ${Object.keys(PROFILE_FIELDS).join(', ')}`)
+    }
+    if (value !== undefined) body[PROFILE_FIELDS[name as keyof typeof PROFILE_FIELDS]] = value
+  }
+  return body
 }
 
 /** Everything the resources share: the key, the retries, the wire. Not exported, and the key never leaves it. */
 class Core {
   readonly simulate: boolean
   readonly simulated: SimulatedEvent[] = []
+  readonly simulatedCalls: SimulatedCall[] = []
   readonly #key: string
   readonly #baseUrl: string
   readonly #timeoutMs: number
@@ -160,18 +208,42 @@ class Core {
     }
   }
 
-  async #attempt(method: string, path: string, body: string, idempotencyKey: string | null): Promise<Received> {
+  /**
+   * What `simulate: true` does for a call that is not an event: record it, and answer with `simulated(n)`. A read has no such
+   * answer, and an invented one would make a test pass for the wrong reason.
+   */
+  simulateCall<T>(
+    method: string,
+    path: string,
+    body: string | null,
+    idempotencyKey: string | null,
+    simulated: ((n: number) => T) | null,
+  ): T {
+    if (simulated === null) {
+      throw new HermesiSimulationError(`${method} ${path} reads from Hermesi and this client is in simulate mode, so there is nothing to read`)
+    }
+    this.#counter += 1
+    this.simulatedCalls.push({
+      method,
+      path,
+      body: body === null ? null : (JSON.parse(body) as Record<string, unknown>),
+      idempotencyKey,
+    })
+    return simulated(this.#counter)
+  }
+
+  async #attempt(method: string, path: string, body: string | null, idempotencyKey: string | null): Promise<Received> {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.#key}`,
       Accept: 'application/json',
-      'Content-Type': 'application/json',
       'User-Agent': `hermesi-node/${VERSION}`,
     }
+    if (body !== null) headers['Content-Type'] = 'application/json'
     if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey
     const response = await this.#fetch(this.#baseUrl + path, {
       method,
       headers,
-      body,
+      ...(body === null ? {} : { body }),
       // A redirect would turn the POST into a GET and lose the event without a word, so it is reported instead.
       redirect: 'manual',
       signal: AbortSignal.timeout(this.#timeoutMs),
@@ -188,7 +260,7 @@ class Core {
   }
 
   /** One call, with retries. Resolves with a 2xx answer; rejects with a `HermesiAPIError` or a `HermesiConnectionError` otherwise. */
-  async send(method: string, path: string, body: string, idempotencyKey: string | null): Promise<Received> {
+  async send(method: string, path: string, body: string | null, idempotencyKey: string | null): Promise<Received> {
     let retries = 0
     for (;;) {
       let wait: number | null
@@ -217,20 +289,8 @@ class Core {
   }
 }
 
-function parse(text: string): unknown {
-  try {
-    return JSON.parse(text)
-  } catch {
-    return null
-  }
-}
-
 function refusal(received: Received, retryAfter: number | null): HermesiAPIError {
-  return errorFromResponse(received.status, parse(received.text), retryAfter)
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+  return errorFromResponse(received.status, parseJson(received.text), retryAfter)
 }
 
 export class Events {
@@ -277,10 +337,23 @@ export class Events {
     const received = await core.send('POST', '/v1/events', encoded, key)
     return eventResult(received, key)
   }
+
+  /**
+   * What became of an event: the notification each recipient got, the messages each produced and how far each got. A message's status
+   * moves on after the event was accepted, so poll it (`message.isFinal`) rather than treating the first answer as final. It never
+   * returns what was sent or the recipient's address; an event of another environment is a `NotFoundError`.
+   */
+  async get(eventId: string): Promise<EventRun> {
+    const core = this.#core
+    const path = `/v1/events/${pathSegment(eventId, 'eventId')}`
+    if (core.simulate) return core.simulateCall('GET', path, null, null, null)
+    const received = await core.send('GET', path, null, null)
+    return parseEventRun(parseJson(received.text), received.status)
+  }
 }
 
 function eventResult(received: Received, key: string): EventResult {
-  const body = parse(received.text)
+  const body = parseJson(received.text)
   if (!isRecord(body) || typeof body.event_id !== 'string') throw errorFromResponse(received.status, null, null)
   const notifications: NotificationSummary[] = (Array.isArray(body.notifications) ? body.notifications : [])
     .filter(isRecord)
@@ -307,15 +380,201 @@ export class Subscribers {
     this.#core = core
   }
 
+  /** One call: simulated or sent, then read. `simulated` is `null` for a read. */
+  async #call<T>(
+    method: string,
+    path: string,
+    body: Record<string, unknown> | null,
+    simulated: ((n: number) => T) | null,
+    read: (text: string, status: number) => T,
+  ): Promise<T> {
+    const core = this.#core
+    // Encoded before the simulate branch, so a body that cannot be serialised fails in a test as it would in production.
+    const encoded = body === null ? null : encodeJson(body)
+    if (core.simulate) return core.simulateCall(method, path, encoded, null, simulated)
+    const received = await core.send(method, path, encoded, null)
+    return read(received.text, received.status)
+  }
+
+  /**
+   * Create the subscriber, or update it: **a field you give is set, `null` clears it, and one you leave out is left alone**, so a sync
+   * job that knows half a profile does not blank the other half. `data` **replaces** the stored attributes (at most 32 KB) rather than
+   * merging. The server checks the shapes (an email looks like one, `phoneE164` is E.164, `locale` a language tag, `timezone` an IANA
+   * name) and refuses what it does not know, as a `ValidationError` naming the field.
+   */
+  async put(externalId: string, fields: SubscriberFields = {}): Promise<SubscriberProfile> {
+    return this.#write('PUT', externalId, fields)
+  }
+
+  /** Like `put`, but a `NotFoundError` if the subscriber does not exist, instead of creating it. */
+  async patch(externalId: string, fields: SubscriberFields = {}): Promise<SubscriberProfile> {
+    return this.#write('PATCH', externalId, fields)
+  }
+
+  async #write(method: 'PUT' | 'PATCH', externalId: string, fields: SubscriberFields): Promise<SubscriberProfile> {
+    const path = `/v1/subscribers/${pathSegment(externalId)}`
+    const body = profileBody(fields)
+    return this.#call(
+      method,
+      path,
+      body,
+      (n) => parseProfile({ id: `sub_simulated_${n}`, external_id: externalId, ...body }, 200),
+      (text, status) => parseProfile(parseJson(text), status),
+    )
+  }
+
+  /** The profile, the channel identities and the stored preference overrides. A `NotFoundError` for an unknown or erased subscriber. */
+  async get(externalId: string): Promise<SubscriberProfile> {
+    const path = `/v1/subscribers/${pathSegment(externalId)}`
+    return this.#call('GET', path, null, null, (text, status) => parseProfile(parseJson(text), status))
+  }
+
+  /**
+   * Erase the personal data (email, phone, names, attributes, channel identities, preferences) and replace the address on every message
+   * the person received by `[deleted]`, keeping the messages and their status for your statistics. Idempotent: deleting twice, or an
+   * unknown subscriber, is not an error. Inbox items, the stored text of messages and event payloads are **not** erased yet.
+   */
+  async delete(externalId: string): Promise<void> {
+    const path = `/v1/subscribers/${pathSegment(externalId)}`
+    await this.#call('DELETE', path, null, () => undefined, () => undefined)
+  }
+
+  /**
+   * Register where to reach the subscriber on a channel: a device token, a chat id, a Web Push endpoint. Safe to call on every app
+   * start: it refreshes the identity and makes it active again if a provider had marked it invalid, and never duplicates it.
+   */
+  async registerChannel(
+    externalId: string,
+    channel: string,
+    identifier: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<ChannelIdentity> {
+    const path = `/v1/subscribers/${pathSegment(externalId)}/channels`
+    if (!channel) throw new TypeError('channel is required, for example push')
+    if (!identifier) throw new TypeError('identifier is required: a device token, a chat id or a Web Push endpoint')
+    const body: Record<string, unknown> = { channel, identifier }
+    if (metadata !== undefined) body.metadata = metadata
+    return this.#call(
+      'POST',
+      path,
+      body,
+      () => parseChannelIdentity({ channel, identifier, state: 'active', metadata: metadata ?? {} }, 200),
+      (text, status) => parseChannelIdentity(parseJson(text), status),
+    )
+  }
+
+  /** Forget a destination. Idempotent. */
+  async removeChannel(externalId: string, channel: string, identifier: string): Promise<void> {
+    // `identifier` is the rest of the path on the server, so a Web Push endpoint URL goes in percent-encoded as one segment.
+    const path = `/v1/subscribers/${pathSegment(externalId)}/channels/${pathSegment(channel, 'channel')}/${pathSegment(identifier, 'identifier')}`
+    await this.#call('DELETE', path, null, () => undefined, () => undefined)
+  }
+
+  /** The stored overrides. A channel or category that is absent has none and follows the category's default. */
+  async preferences(externalId: string): Promise<Preferences> {
+    const path = `/v1/subscribers/${pathSegment(externalId)}/preferences`
+    return this.#call('GET', path, null, null, (text, status) => parsePreferences(parseJson(text), status))
+  }
+
+  /**
+   * Change overrides: `true` or `false` sets one, `null` removes it so the category's default applies again, and what you leave out is
+   * untouched. All or nothing: an unknown category (`NotFoundError`) or a critical one (`ValidationError`) refuses the whole update.
+   */
+  async updatePreferences(externalId: string, changes: PreferenceChanges): Promise<Preferences> {
+    const path = `/v1/subscribers/${pathSegment(externalId)}/preferences`
+    for (const name of Object.keys(changes)) {
+      if (name !== 'global' && name !== 'categories') {
+        throw new TypeError(`unknown preference group "${name}"; expected global or categories`)
+      }
+    }
+    const body: Record<string, unknown> = {}
+    if (changes.global !== undefined) body.global = changes.global
+    if (changes.categories !== undefined) body.categories = changes.categories
+    if (Object.keys(body).length === 0) throw new TypeError('give global or categories: there is nothing to change')
+    const kept = (flags: Record<string, boolean | null> | undefined): Record<string, boolean> =>
+      Object.fromEntries(Object.entries(flags ?? {}).filter((entry): entry is [string, boolean] => entry[1] !== null))
+    return this.#call(
+      'PATCH',
+      path,
+      body,
+      () =>
+        parsePreferences(
+          {
+            global: kept(changes.global),
+            categories: Object.fromEntries(Object.entries(changes.categories ?? {}).map(([category, flags]) => [category, kept(flags)])),
+          },
+          200,
+        ),
+      (text, status) => parsePreferences(parseJson(text), status),
+    )
+  }
+
   /** A link to the hosted preference page for one subscriber. It needs no login and works for about a year. */
   async preferenceLink(externalId: string): Promise<PreferenceLink> {
     const core = this.#core
     const segment = pathSegment(externalId)
     if (core.simulate) return { url: `https://simulated.invalid/preferences/${segment}` }
     const received = await core.send('POST', `/v1/subscribers/${segment}/preference-link`, '{}', null)
-    const body = parse(received.text)
+    const body = parseJson(received.text)
     if (!isRecord(body) || typeof body.url !== 'string') throw errorFromResponse(received.status, null, null)
     return { url: body.url }
+  }
+}
+
+export class Messages {
+  readonly #core: Core
+
+  /** @internal */
+  constructor(core: Core) {
+    this.#core = core
+  }
+
+  /**
+   * Send one message on one channel, through one published template. Almost everything should be an event: you say what happened and
+   * Hermesi decides the channels. Use this when the channel is a requirement instead (an OTP that must be an SMS).
+   *
+   * It skips the workflow and nothing else: preferences, suppressions and the audit trail still apply, and a refused message is a
+   * result you can read (`status` is `skipped` or `suppressed`), not an exception. A mistake (an unknown template, a template with no
+   * variant for the channel, an unknown recipient) is thrown and creates nothing. There is no inline content: it would put copy back
+   * in your code.
+   *
+   * **Pass your own `idempotencyKey` when your code can run twice.** One is generated and kept across the retries if you give none,
+   * so a timeout cannot send a second SMS, but only your own key survives your code running again.
+   */
+  async send(input: SendMessageInput, options: SendMessageOptions = {}): Promise<MessageResult> {
+    const core = this.#core
+    if (!input.channel) throw new TypeError('channel is required, for example sms')
+    if (!input.template) throw new TypeError('template is required: the key of a published template')
+    const key = options.idempotencyKey || globalThis.crypto.randomUUID()
+    const body: Record<string, unknown> = {
+      channel: input.channel,
+      recipient: recipientWire(input.recipient),
+      template: input.template,
+    }
+    if (input.category !== undefined) body.category = input.category
+    if (input.data !== undefined) body.data = input.data
+    if (input.priority !== undefined) body.priority = input.priority
+    const encoded = encodeJson(body)
+    if (core.simulate) {
+      return core.simulateCall('POST', '/v1/messages', encoded, key, (n) => ({
+        messageId: `msg_simulated_${n}`,
+        status: 'simulated',
+        messages: [],
+        replayed: false,
+        idempotencyKey: key,
+      }))
+    }
+    const received = await core.send('POST', '/v1/messages', encoded, key)
+    return parseMessageResult(parseJson(received.text), received.status, received.replayed, key)
+  }
+
+  /** A message and how far it got. A `NotFoundError` for an unknown id or one of another environment. */
+  async get(messageId: string): Promise<Message> {
+    const core = this.#core
+    const path = `/v1/messages/${pathSegment(messageId, 'messageId')}`
+    if (core.simulate) return core.simulateCall('GET', path, null, null, null)
+    const received = await core.send('GET', path, null, null)
+    return parseMessage(parseJson(received.text), received.status)
   }
 }
 
@@ -340,6 +599,7 @@ export class Tokens {
 export class Hermesi {
   readonly events: Events
   readonly subscribers: Subscribers
+  readonly messages: Messages
   readonly tokens: Tokens
   readonly #core: Core
 
@@ -347,6 +607,7 @@ export class Hermesi {
     this.#core = new Core(options)
     this.events = new Events(this.#core)
     this.subscribers = new Subscribers(this.#core)
+    this.messages = new Messages(this.#core)
     this.tokens = new Tokens(this.#core)
   }
 
@@ -358,5 +619,10 @@ export class Hermesi {
   /** The events recorded by `simulate: true`, oldest first. */
   get simulated(): readonly SimulatedEvent[] {
     return this.#core.simulated
+  }
+
+  /** Every other write recorded by `simulate: true` (subscribers, channels, preferences, messages), oldest first. */
+  get simulatedCalls(): readonly SimulatedCall[] {
+    return this.#core.simulatedCalls
   }
 }

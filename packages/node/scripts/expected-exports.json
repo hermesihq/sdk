@@ -1,13 +1,16 @@
 {
   "runtime": [
     "AuthenticationError",
+    "ConflictError",
     "Events",
     "ForbiddenError",
     "Hermesi",
     "HermesiAPIError",
     "HermesiConnectionError",
     "HermesiError",
+    "HermesiSimulationError",
     "MAX_TTL_SECONDS",
+    "Messages",
     "NotFoundError",
     "RateLimitError",
     "ServerError",
