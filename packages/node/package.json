@@ -1,6 +1,6 @@
 {
   "name": "@hermesihq/node",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Server-side client for Hermesi: publish events and read what became of them, keep subscribers in sync, send a direct message, mint subscriber tokens and preference links. No dependencies; Node 20 and later.",
   "type": "module",
   "license": "MIT",
