@@ -140,6 +140,28 @@ await hermesi.subscribers.updatePreferences('user_8821', {
 `updatePreferences`, `true` or `false` sets an override and `null` removes it, so the category's default applies again. It is all or
 nothing: an unknown category (`NotFoundError`) or a critical one (`ValidationError`) refuses the whole update.
 
+### Import many at once
+
+```ts
+const result = await hermesi.subscribers.bulk([
+  { externalId: 'user_8821', email: 'amina@example.cm', phoneE164: '+237690000000', locale: 'fr' },
+  { externalId: 'user_8822', email: 'paul@example.cm', data: { plan: 'free' } },
+  { externalId: 'user_8823', phoneE164: null }, // null clears, as in put
+])
+result.created // 3
+result.updated // 0
+result.subscribers.map((r) => [r.externalId, r.status]) // one per row, in order: 'created' or 'updated'
+```
+
+For a first import of your user table or a nightly sync: up to **1 000** rows per call (split a bigger file into batches). Each row is an
+`externalId` and any of the fields `put` takes, and **means exactly what the same `put` would**: a field you give is set (`null`
+clears it), one you leave out is left alone, and `data` replaces. A field name the SDK does not know is a `TypeError` naming the row.
+
+**All or nothing.** If the server finds any row invalid it throws a `ValidationError` that lists every problem with its row
+(`body.subscribers.17.email`) and **nothing was written**, so fix them all and send the same batch again. The same `externalId` twice, or
+more than 5 MB of `data` in total, is refused too. Every row is an idempotent upsert, so resending after a timeout changes nothing; a
+full batch takes a few seconds, so do not set a very short `timeoutMs`.
+
 ## Send one message on a channel you choose
 
 Almost everything should be an event: you say what happened and Hermesi decides the channels. When the channel is a requirement
@@ -263,7 +285,7 @@ read, and an invented answer would make a test pass for the wrong reason.
 
 ## Not included
 
-Bulk subscriber import (a later phase of Hermesi), the dashboard's Management API (workflows, templates, providers) and inline
+The dashboard's Management API (workflows, templates, providers) and inline
 `content` for a direct message (Hermesi refuses it on purpose). Outbound webhooks are not implemented in Hermesi yet either, so
 there is nothing to verify.
 

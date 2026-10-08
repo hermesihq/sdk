@@ -314,4 +314,56 @@ describe.skipIf(!(URL && SECRET && PUBLIC && ENVIRONMENT && SUBSCRIBER))('agains
     expect(response.status).toBe(422)
     expect(((await response.json()) as { error: { code: string } }).error.code).toBe('inline_content_not_supported')
   })
+
+  it('imports a batch, updates it, and each row means what a put would', async () => {
+    const [a, b, c] = [unique(), unique(), unique()] as [string, string, string]
+
+    const first = await live.subscribers.bulk([
+      { externalId: a, email: 'Bulk.A@Example.test', firstName: 'Aa', data: { plan: 'pro' } },
+      { externalId: b, phoneE164: '+237690000010', locale: 'fr' },
+    ])
+
+    expect([first.created, first.updated]).toEqual([2, 0])
+    expect(first.subscribers.map((r) => [r.externalId, r.status])).toEqual([[a, 'created'], [b, 'created']])
+    expect((await live.subscribers.get(a)).email, 'lower-cased, as a put does').toBe('bulk.a@example.test')
+
+    const second = await live.subscribers.bulk([{ externalId: a, firstName: null, data: { seats: 3 } }, { externalId: b, locale: 'en' }, { externalId: c }])
+
+    expect(second.subscribers.map((r) => r.status)).toEqual(['updated', 'updated', 'created'])
+    const afterA = await live.subscribers.get(a)
+    const afterB = await live.subscribers.get(b)
+    expect([afterA.email, afterA.firstName, afterA.data], 'left out kept, null cleared, data replaced').toEqual(['bulk.a@example.test', null, { seats: 3 }])
+    expect([afterB.phoneE164, afterB.locale]).toEqual(['+237690000010', 'en'])
+    for (const id of [a, b, c]) await live.subscribers.delete(id)
+  })
+
+  it('one invalid row refuses the whole batch and writes nothing', async () => {
+    const [good, bad] = [unique(), unique()] as [string, string]
+
+    const error = (await live.subscribers
+      .bulk([{ externalId: good, email: 'good@example.test' }, { externalId: bad, phoneE164: '690000000' }])
+      .catch((e: unknown) => e)) as ValidationError
+
+    expect(error).toBeInstanceOf(ValidationError)
+    expect(error.detail.some((d) => (d.field ?? '').includes('subscribers.1.phone_e164'))).toBe(true)
+    await expect(live.subscribers.get(good)).rejects.toBeInstanceOf(NotFoundError)
+  })
+
+  it('refuses the same id twice in a batch', async () => {
+    const id = unique()
+
+    const error = (await live.subscribers.bulk([{ externalId: id }, { externalId: id }]).catch((e: unknown) => e)) as ValidationError
+
+    expect(error).toBeInstanceOf(ValidationError)
+    expect(JSON.stringify(error.detail) + error.message).toContain('more than once')
+  })
+
+  it('takes an id a path treats specially as an ordinary value in a bulk body', async () => {
+    const id = `team/${unique()} é?#`
+
+    await live.subscribers.bulk([{ externalId: id, locale: 'fr' }])
+
+    expect((await live.subscribers.get(id)).locale).toBe('fr')
+    await live.subscribers.delete(id)
+  })
 })

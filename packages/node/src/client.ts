@@ -9,6 +9,7 @@
 import { HermesiAPIError, HermesiConnectionError, HermesiSimulationError, errorFromResponse } from './errors.ts'
 import {
   isRecord,
+  parseBulkResult,
   parseChannelIdentity,
   parseEventRun,
   parseJson,
@@ -28,6 +29,8 @@ import {
 import { encodeJson } from './serialize.ts'
 import { type MintOptions, mintSubscriberToken } from './tokens.ts'
 import type {
+  BulkSubscriberRow,
+  BulkSubscribersResult,
   ChannelIdentity,
   EventResult,
   EventRun,
@@ -420,6 +423,50 @@ export class Subscribers {
       body,
       (n) => parseProfile({ id: `sub_simulated_${n}`, external_id: externalId, ...body }, 200),
       (text, status) => parseProfile(parseJson(text), status),
+    )
+  }
+
+  /**
+   * Create or update up to 1 000 subscribers in one request: a first import of your user table, or a nightly sync.
+   *
+   * Each row is an `externalId` and any of the fields `put` takes, and **means exactly what the same `put` would**: a field you give
+   * is set, `null` clears it, one you leave out (or set to `undefined`) is left alone, `data` replaces. A field name the SDK does not
+   * know is a `TypeError` naming the row.
+   *
+   * **All or nothing**: if the server finds any row invalid, a `ValidationError` lists every problem with the row it is on
+   * (`body.subscribers.17.email`) and nothing was written. The same `externalId` twice, more than 1 000 rows, or more than 5 MB of
+   * `data` in total are refused too: split a larger import into batches. Every row is an idempotent upsert, so sending the same batch
+   * again after a timeout is safe, and there is no idempotency key to manage. A full batch takes a few seconds: do not set a very
+   * short `timeoutMs`.
+   *
+   * The result has one entry per row, in the order you sent them, saying whether each was `created` or `updated`.
+   */
+  async bulk(subscribers: Iterable<BulkSubscriberRow>): Promise<BulkSubscribersResult> {
+    const rows: Record<string, unknown>[] = []
+    for (const row of subscribers) {
+      const index = rows.length
+      if (typeof row !== 'object' || row === null) throw new TypeError(`row ${index} must be an object with an externalId`)
+      const { externalId, ...fields } = row
+      if (typeof externalId !== 'string' || !externalId) throw new TypeError(`row ${index}: externalId is required`)
+      let body: Record<string, unknown>
+      try {
+        body = profileBody(fields)
+      } catch (error) {
+        throw new TypeError(`row ${index}: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
+      }
+      rows.push({ external_id: externalId, ...body })
+    }
+    if (rows.length === 0) throw new TypeError('give at least one subscriber')
+    return this.#call(
+      'POST',
+      '/v1/subscribers/bulk',
+      { subscribers: rows },
+      (n) => ({
+        created: rows.length,
+        updated: 0,
+        subscribers: rows.map((row, index) => ({ externalId: String(row.external_id), id: `sub_simulated_${n}_${index}`, status: 'created' })),
+      }),
+      (text, status) => parseBulkResult(parseJson(text), status),
     )
   }
 
