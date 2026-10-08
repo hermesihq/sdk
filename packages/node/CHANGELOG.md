@@ -12,6 +12,16 @@ integrations.
 
 `1.0.0` is the commitment that a breaking change requires a major bump. It waits until at least one real integration exists.
 
+## 0.3.0 (2026-10-08)
+
+### Added
+
+- **`subscribers.bulk(rows)`**: create or update up to 1 000 subscribers in one request, for a first import or a nightly sync. Each row
+  is an `externalId` and any `put` field, with the same meaning (a field you give is set, `null` clears it, one you leave out is left
+  alone). A field name the SDK does not know is a `TypeError` naming the row. All or nothing: a server refusal lists every problem with
+  its row and writes nothing. `BulkSubscribersResult`, `BulkSubscriberResult` and `BulkSubscriberRow` say which rows were created and
+  which updated.
+
 ## 0.2.0 (2026-10-07)
 
 ### Added

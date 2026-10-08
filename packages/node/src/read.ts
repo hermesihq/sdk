@@ -9,6 +9,7 @@
 
 import { errorFromResponse } from './errors.ts'
 import type {
+  BulkSubscribersResult,
   ChannelIdentity,
   EventRun,
   Message,
@@ -132,6 +133,19 @@ export function parseProfile(body: unknown, status: number): SubscriberProfile {
     updatedAt: str(body.updated_at),
     channels: records(body.channels).map((c) => parseChannelIdentity(c, status)),
     preferences: parsePreferences(isRecord(body.preferences) ? body.preferences : { global: {}, categories: {} }, status),
+  }
+}
+
+export function parseBulkResult(body: unknown, status: number): BulkSubscribersResult {
+  if (!isRecord(body) || !Array.isArray(body.subscribers)) throw unexpected(status)
+  return {
+    created: typeof body.created === 'number' ? body.created : 0,
+    updated: typeof body.updated === 'number' ? body.updated : 0,
+    subscribers: records(body.subscribers).map((row) => ({
+      externalId: String(row.external_id),
+      id: String(row.id),
+      status: String(row.status),
+    })),
   }
 }
 

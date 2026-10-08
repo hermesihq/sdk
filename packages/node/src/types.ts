@@ -107,6 +107,26 @@ export interface SubscriberFields {
   data?: Record<string, unknown> | null
 }
 
+/** One row of `subscribers.bulk`: an `externalId` and any of the fields `put` takes, with the same meaning. */
+export interface BulkSubscriberRow extends SubscriberFields {
+  externalId: string
+}
+
+/** One row of a bulk import, as it came out. */
+export interface BulkSubscriberResult {
+  externalId: string
+  id: string
+  /** `created`: a subscriber that did not exist (or had been deleted, which comes back empty). `updated`: one that did. */
+  status: string
+}
+
+/** The answer to `subscribers.bulk`: one entry per row you sent, in the same order. */
+export interface BulkSubscribersResult {
+  created: number
+  updated: number
+  subscribers: BulkSubscriberResult[]
+}
+
 /** A destination registered for a subscriber: a device token, a chat id, a Web Push endpoint. */
 export interface ChannelIdentity {
   channel: string

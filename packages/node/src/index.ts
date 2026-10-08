@@ -17,6 +17,9 @@ export { mintSubscriberToken, MAX_TTL_SECONDS, type MintOptions } from './tokens
 export type { RetryOptions } from './retry.ts'
 export type {
   Actor,
+  BulkSubscriberResult,
+  BulkSubscriberRow,
+  BulkSubscribersResult,
   ChannelIdentity,
   EventResult,
   EventRun,
