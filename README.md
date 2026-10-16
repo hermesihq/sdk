@@ -6,11 +6,13 @@ Client libraries for Hermesi: the in-app inbox for pages, and a client for your 
 |---|---|---|
 | [`@hermesihq/js`](packages/js) | Any page: plain JavaScript, Vue, Angular, Svelte, or a server | An API client, and framework-free stores for the unread count, the inbox list and notification preferences |
 | [`@hermesihq/react`](packages/react) | React 18 and newer | A ready-made bell and panel, and hooks. A thin binding over `@hermesihq/js` |
+| [`@hermesihq/element`](packages/element) | Any page, with no React: plain HTML, WordPress, Vue, Angular, Svelte | The same bell and panel as a custom element, `<hermes-inbox>`, also as one `<script>` file |
 | [`@hermesihq/node`](packages/node) | Your server: Node 20+, Next.js route handlers, workers | Publish events, mint subscriber tokens and preference links, with retries and idempotency built in |
 
 ```sh
 npm install @hermesihq/js      # no framework
 npm install @hermesihq/react   # React
+npm install @hermesihq/element # any page, no React: <hermes-inbox>
 npm install @hermesihq/node    # your server, to publish events
 ```
 
