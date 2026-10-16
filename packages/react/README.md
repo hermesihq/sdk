@@ -65,6 +65,7 @@ which are colour alone, keep an outline and a fill in the user's own colours.
 | `colorScheme` | `'auto'` | `'auto'` follows the visitor's OS setting; `'light'` or `'dark'` force one |
 | `locale` | `'en'` | `'en'` or `'fr'` |
 | `className` | | Added to the root element **and to the panel**, so one rule themes both |
+| `archivedView` | `false` | Adds an "Archived" control to the panel's header that switches it to the notifications the person has archived, with a way back. The archived list has no archive buttons (there is no way to un-archive) and no "Mark all as read"; the panel is the live feed again each time it opens. |
 | `onError` | | Called with an `Error` (a `HermsApiError` when Hermesi refused) when something the person did fails: marking read, marking all read, archiving, or marking seen. The component shows nothing for these, because the list is the source of truth and the next refresh corrects it. Without it the error is logged with `console.error`. Never an unhandled rejection. |
 
 Everything else is reachable by overriding these CSS custom properties: `--herms-color-accent`,

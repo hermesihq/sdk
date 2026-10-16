@@ -53,7 +53,7 @@ const tenants = new Map()
 function tenantFor(id) {
   let tenant = tenants.get(id)
   if (!tenant) {
-    tenant = { items: [], requests: [], streams: new Set(), faultyRead: false, latencyMs: 0, failNext: 0, holdList: false, held: [], nextId: 1 }
+    tenant = { items: [], requests: [], streams: new Set(), faultyRead: false, latencyMs: 0, failNext: 0, holdList: false, held: [], nextId: 1, archived: [] }
     tenants.set(id, tenant)
   }
   return tenant
@@ -139,7 +139,8 @@ async function clientApi(req, res, url, tenant) {
     // Held until the test says so: a list that arrives exactly when the test wants it to, not
     // after a time the machine may or may not have been quick enough to beat.
     if (tenant.holdList) await new Promise((release) => tenant.held.push(release))
-    send(res, 200, { data: tenant.items, has_more: false, next_cursor: null })
+    // What `?archived=true` lists is what was archived, and only that; the live feed never carries it.
+    send(res, 200, { data: url.searchParams.get('archived') === 'true' ? tenant.archived : tenant.items, has_more: false, next_cursor: null })
     return true
   }
   if (req.method === 'POST' && route === '/inbox/seen') {
@@ -160,9 +161,13 @@ async function clientApi(req, res, url, tenant) {
   const one = route.match(/^\/inbox\/([^/]+)(?:\/(read|unread|archive))?$/)
   if (one) {
     const [, id, action] = one
-    const index = tenant.items.findIndex((i) => i.id === decodeURIComponent(id))
+    const wanted = decodeURIComponent(id)
+    // A notification is in the feed or in the archive, and the same actions reach it in either.
+    let list = tenant.items
+    let index = list.findIndex((i) => i.id === wanted)
+    if (index === -1) (list = tenant.archived), (index = list.findIndex((i) => i.id === wanted))
     if (index === -1) return send(res, 404, envelope('not_found', 'No such notification.')), true
-    const item = tenant.items[index]
+    const item = list[index]
     if (req.method === 'POST' && action === 'read') {
       item.read_at ??= new Date().toISOString()
       pushEvent(tenant, 'counts.changed', counts(tenant))
@@ -178,13 +183,14 @@ async function clientApi(req, res, url, tenant) {
       return true
     }
     if (req.method === 'POST' && action === 'archive') {
-      tenant.items.splice(index, 1)
+      list.splice(index, 1)
+      tenant.archived.unshift(item)
       pushEvent(tenant, 'counts.changed', counts(tenant))
       send(res, 200, item)
       return true
     }
     if (req.method === 'DELETE' && !action) {
-      tenant.items.splice(index, 1)
+      list.splice(index, 1)
       send(res, 204)
       return true
     }
@@ -201,6 +207,7 @@ async function control(req, res, url) {
     tenant.requests.length = 0
     tenant.nextId = 1
     tenant.items = (scenario.items ?? []).map((partial) => wireItem(partial, tenant.nextId++))
+    tenant.archived = (scenario.archived ?? []).map((partial) => wireItem(partial, tenant.nextId++))
     tenant.faultyRead = Boolean(scenario.faultyRead)
     tenant.latencyMs = Number(scenario.latencyMs ?? 0)
     tenant.failNext = Number(scenario.failNext ?? 0)

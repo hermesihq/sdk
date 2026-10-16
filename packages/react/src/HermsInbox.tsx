@@ -45,6 +45,13 @@ export interface HermsInboxProps {
   locale?: HermsLocale
   className?: string
   /**
+   * Adds an "Archived" control to the panel's header that switches it to the notifications the person has archived, with a way
+   * back. Off by default, so that upgrading changes nothing a person sees until the host asks for it. The archived list is only
+   * for looking back: its rows have no archive control (there is no way to un-archive), a notification can still be opened and
+   * marked read or unread, and the panel returns to the live feed whenever it is closed.
+   */
+  archivedView?: boolean
+  /**
    * Called when something the person did fails: marking a notification read, marking all read, archiving, or marking them
    * seen. Receives an `Error` (a `HermsApiError` when Hermesi refused the request). The component shows nothing itself
    * for these, because the list is the source of truth and the next refresh corrects it; this is how your app finds out,
@@ -111,10 +118,14 @@ function AlertIcon() {
  * which also returns focus to the trigger), and `Enter`/`Space` (native
  * `<button>` behavior) to activate the focused item.
  */
-export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, colorScheme = 'auto', locale, className, onError }: HermsInboxProps) {
+export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, colorScheme = 'auto', locale, className, archivedView = false, onError }: HermsInboxProps) {
   const { client } = useHermsContext()
   const { unread, unseen } = useUnreadCount()
-  const { items, isLoading, isLoadingMore, error, hasMore, loadMore, markRead, markUnread, markAllRead, archive, refetch } = useInbox()
+  // Whether the person has opened the archived list. Only meaningful while the host has the view turned on, so turning it off
+  // while it is open is the live feed again, without any state to reset.
+  const [showArchived, setShowArchived] = useState(false)
+  const archivedOpen = archivedView && showArchived
+  const { items, isLoading, isLoadingMore, error, hasMore, loadMore, markRead, markUnread, markAllRead, archive, refetch } = useInbox({ archived: archivedOpen })
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([])
@@ -144,16 +155,17 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
   // every currently loaded, not-yet-seen id seen once the panel is open and
   // has items, including any additional ids that arrive later via
   // `loadMore`/live updates while it stays open.
+  // Not in the archived list: what is filed away is not new, and reporting it "seen" would be a request for nothing.
   useEffect(() => {
-    if (!open || items.length === 0) return
+    if (!open || archivedOpen || items.length === 0) return
     const toMark = seenRef.current.take(items)
     if (toMark.length === 0) return
     guard(client.markSeen(toMark))
-  }, [open, items, client, guard])
+  }, [open, archivedOpen, items, client, guard])
 
   useEffect(() => {
     if (open) setActiveIndex(0)
-  }, [open])
+  }, [open, archivedOpen])
 
   useEffect(() => {
     if (!open) {
@@ -211,7 +223,14 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
       <span className="herms-inbox__visually-hidden" role="status" aria-live="polite">
         {unread > 0 ? strings.bellLabelWithUnread(unread) : ''}
       </span>
-      <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Root
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next)
+          // A panel that is opened again is the live feed, not wherever it was left.
+          if (!next) setShowArchived(false)
+        }}
+      >
         <Popover.Trigger asChild>
           <button
             type="button"
@@ -258,11 +277,20 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
             }}
           >
             <div className="herms-inbox__header">
-              <p className="herms-inbox__title" id={titleId}>{strings.panelTitle}</p>
+              <p className="herms-inbox__title" id={titleId}>{archivedOpen ? strings.archivedTitle : strings.panelTitle}</p>
               <div className="herms-inbox__header-actions">
-                <button type="button" className="herms-inbox__text-button" onClick={() => guard(markAllRead())} disabled={unread === 0}>
-                  {strings.markAllRead}
-                </button>
+                {/* One control that is "Archived" on the live feed and "Back" on the archive. It is the same element in both, so
+                    a keyboard user who pressed it is still on it when the list changes. */}
+                {archivedView && (
+                  <button type="button" className="herms-inbox__text-button" onClick={() => setShowArchived((current) => !current)}>
+                    {archivedOpen ? strings.backToInbox : strings.archivedView}
+                  </button>
+                )}
+                {!archivedOpen && (
+                  <button type="button" className="herms-inbox__text-button" onClick={() => guard(markAllRead())} disabled={unread === 0}>
+                    {strings.markAllRead}
+                  </button>
+                )}
                 <Popover.Close asChild>
                   <button type="button" className="herms-inbox__icon-button" aria-label={strings.close}>
                     <CloseIcon />
@@ -286,14 +314,14 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
                 </button>
               </div>
             ) : items.length === 0 ? (
-              <div className="herms-inbox__state">{strings.empty}</div>
+              <div className="herms-inbox__state">{archivedOpen ? strings.archivedEmpty : strings.empty}</div>
             ) : (
               <>
                 {/* A list of buttons, not an ARIA menu: each row holds two controls (the notification and its archive
                     button), and a menu may own only menu items, so the archive buttons would sit outside the pattern. `role="list"`
                     is explicit because Safari drops list semantics from a list whose bullets are removed. Arrow keys still move
                     between notifications; every control is also reachable with Tab, as in any list of buttons. */}
-                <ul className="herms-inbox__list" role="list" aria-label={strings.panelTitle} onKeyDown={handleListKeyDown}>
+                <ul className="herms-inbox__list" role="list" aria-label={archivedOpen ? strings.archivedTitle : strings.panelTitle} onKeyDown={handleListKeyDown}>
                   {items.map((item, index) => (
                     <li key={item.id} className="herms-inbox__list-row">
                       <button
@@ -327,17 +355,19 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
                           <MailIcon />
                         </button>
                       )}
-                      <button
-                        type="button"
-                        className="herms-inbox__archive-button"
-                        aria-label={`${strings.archive}: ${item.title}`}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          guard(archive(item.id))
-                        }}
-                      >
-                        <ArchiveIcon />
-                      </button>
+                      {!archivedOpen && (
+                        <button
+                          type="button"
+                          className="herms-inbox__archive-button"
+                          aria-label={`${strings.archive}: ${item.title}`}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            guard(archive(item.id))
+                          }}
+                        >
+                          <ArchiveIcon />
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>
