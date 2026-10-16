@@ -6,6 +6,8 @@ import { useHermsContext } from './HermsProvider'
 export interface UseInboxOptions {
   status?: HermsInboxReadStatus
   category?: string
+  /** The archived items instead of the live feed. There is no way to un-archive one: it can be marked read or unread, or removed. */
+  archived?: boolean
 }
 
 export interface UseInboxResult {
@@ -16,6 +18,8 @@ export interface UseInboxResult {
   hasMore: boolean
   loadMore: () => void
   markRead: (id: string) => Promise<void>
+  /** Puts a read item back to unread. Idempotent, and it does not change whether the item was seen. */
+  markUnread: (id: string) => Promise<void>
   markAllRead: () => Promise<void>
   archive: (id: string) => Promise<void>
   remove: (id: string) => Promise<void>
@@ -40,18 +44,18 @@ export interface UseInboxResult {
  */
 export function useInbox(options: UseInboxOptions = {}): UseInboxResult {
   const host = useHermsContext()
-  const { status, category } = options
+  const { status, category, archived } = options
 
   // Only the first render's filter is used to create the store. Later changes go through
   // `setFilter` below, so this memo is keyed on the host alone.
-  const store = useMemo(() => new InboxStore(host, { status, category }), [host])
+  const store = useMemo(() => new InboxStore(host, { status, category, archived }), [host])
 
   useEffect(() => store.connect(), [store])
   // A no-op when the filter is the one the store already has, which is the case on the
   // first render: `connect()` above has just loaded it.
   useEffect(() => {
-    store.setFilter({ status, category })
-  }, [store, status, category])
+    store.setFilter({ status, category, archived })
+  }, [store, status, category, archived])
 
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
 
@@ -62,6 +66,7 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxResult {
       // consumer's `useCallback`/`memo` dependencies do not churn as the state changes.
       loadMore: store.loadMore,
       markRead: store.markRead,
+      markUnread: store.markUnread,
       markAllRead: store.markAllRead,
       archive: store.archive,
       remove: store.remove,

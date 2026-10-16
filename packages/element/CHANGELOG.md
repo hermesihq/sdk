@@ -14,6 +14,14 @@ CSS variables listed in the README are the public API.
 Each release lists breaking changes first, because that is the only section that
 decides whether an upgrade is a decision or a formality.
 
+## 0.3.0 (2026-10-16)
+
+### Changed
+
+- Requires `@hermesihq/js` `^0.3.0` (it was `^0.2.0`, which does not reach a 0.3 release): without the bump a project that also
+  uses `@hermesihq/js` 0.3 would install two copies. Nothing changes for the element: no attribute, event or part was added or
+  removed, and the `<script>` bundle behaves as before.
+
 ## 0.2.0 (2026-10-04)
 
 ### Changed (read this first)

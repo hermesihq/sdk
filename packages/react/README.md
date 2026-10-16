@@ -83,7 +83,7 @@ Use these when the bell and panel are not what you want. Same data, no chrome.
 | Hook | Returns |
 |---|---|
 | `useUnreadCount()` | `{ unread, unseen, isLoading }`, kept live |
-| `useInbox({ status?, category? })` | `{ items, isLoading, isLoadingMore, error, hasMore, loadMore, markRead, markAllRead, archive, remove, refetch }` |
+| `useInbox({ status?, category?, archived? })` | `{ items, isLoading, isLoadingMore, error, hasMore, loadMore, markRead, markUnread, markAllRead, archive, remove, refetch }` |
 | `usePreferences()` | `{ preferences, isLoading, error, setPreference, reload }` |
 
 They are a thin binding over the stores in `@hermesihq/js`, which is where the behaviour is

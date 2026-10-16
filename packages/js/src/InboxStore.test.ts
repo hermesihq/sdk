@@ -71,6 +71,38 @@ describe('loading the list', () => {
     expect(calls).toHaveLength(2)
   })
 
+  it('passes the archived view to the API, and reloads when it is switched', async () => {
+    const { session, calls } = harness((call) => page([wireItem(call.query.get('archived') === 'true' ? 'inb_archived' : 'inb_live')]))
+    const store = new InboxStore(session)
+    store.connect()
+    await until(store, (s) => !s.isLoading)
+    expect(ids(store)).toEqual(['inb_live'])
+    expect(calls[0]?.query.get('archived')).toBeNull()
+
+    store.setFilter({ archived: true })
+    await until(store, (s) => !s.isLoading)
+
+    expect(ids(store)).toEqual(['inb_archived'])
+    expect(calls[1]?.query.get('archived')).toBe('true')
+
+    store.setFilter({})
+    await until(store, (s) => !s.isLoading)
+    expect(ids(store)).toEqual(['inb_live'])
+    expect(calls[2]?.query.get('archived')).toBeNull()
+  })
+
+  it('does not reload when archived goes from absent to false, which is the same view', async () => {
+    const { session, calls } = harness(() => page([wireItem('inb_1')]))
+    const store = new InboxStore(session)
+    store.connect()
+    await until(store, (s) => !s.isLoading)
+
+    store.setFilter({ archived: false })
+    await flush()
+
+    expect(calls).toHaveLength(1)
+  })
+
   it('does not reload for a filter that has not changed', async () => {
     const { session, calls } = harness(() => page([wireItem('inb_1')]))
     const store = new InboxStore(session, { status: 'unread' })
@@ -216,6 +248,46 @@ describe('mutations', () => {
     expect(calls.filter((call) => call.route === 'GET /v1/client/inbox')).toHaveLength(1)
   })
 
+  it('patches a row marked unread with the row the server returned, leaving the others alone', async () => {
+    const { session, calls } = harness((call) =>
+      call.route.endsWith('/unread')
+        ? json(wireItem('inb_1', { read_at: null, seen_at: '2026-09-01T09:30:00Z', title: 'As the server has it now' }))
+        : page([
+            wireItem('inb_1', { read_at: '2026-09-01T10:00:00Z', seen_at: '2026-09-01T09:30:00Z' }),
+            wireItem('inb_2', { read_at: '2026-09-01T10:00:00Z' }),
+          ]),
+    )
+    const store = new InboxStore(session)
+    store.connect()
+    await until(store, (s) => s.items.length === 2)
+    const untouched = store.getSnapshot().items[1]
+
+    await store.markUnread('inb_1')
+
+    expect(store.getSnapshot().items[0]?.readAt).toBeNull()
+    expect(store.getSnapshot().items[0]?.seenAt).toBe('2026-09-01T09:30:00Z')
+    // The row is the one the server returned, not the old row with a field cleared: the SDK reflects the server, it does not
+    // make the change itself.
+    expect(store.getSnapshot().items[0]?.title).toBe('As the server has it now')
+    expect(store.getSnapshot().items[1]).toBe(untouched)
+    // One list read and one write, as for marking read.
+    expect(calls.filter((call) => call.route === 'GET /v1/client/inbox')).toHaveLength(1)
+    expect(calls.filter((call) => call.route === 'POST /v1/client/inbox/inb_1/unread')).toHaveLength(1)
+  })
+
+  it('lets a failed mark-unread reject and leaves the row as it was', async () => {
+    const { session } = harness((call) =>
+      call.route.endsWith('/unread') ? json({ error: { code: 'x', message: 'no' } }, 500) : page([wireItem('inb_1', { read_at: '2026-09-01T10:00:00Z' })]),
+    )
+    const store = new InboxStore(session)
+    store.connect()
+    await until(store, (s) => s.items.length === 1)
+
+    await expect(store.markUnread('inb_1')).rejects.toBeInstanceOf(Error)
+
+    expect(store.getSnapshot().items[0]?.readAt).toBe('2026-09-01T10:00:00Z')
+  })
+
   it('marks every unread row read at once, leaving read rows as they were', async () => {
     const { session } = harness((call) =>
       call.route.endsWith('/read-all')
@@ -299,6 +371,21 @@ describe('live updates', () => {
     await until(store, (s) => s.items[0]?.body === 'The authoritative body.')
     expect(ids(store)).toEqual(['inb_new', 'inb_old'])
     expect(store.getSnapshot().isLoading).toBe(false)
+  })
+
+  it('does not put a new notification at the top of the archived view', async () => {
+    const { session, emit, calls } = harness(() => page([wireItem('inb_archived')]))
+    const store = new InboxStore(session, { archived: true })
+    store.connect()
+    await until(store, (s) => !s.isLoading)
+
+    emit({ type: 'item.created', data: { id: 'inb_new', title: 'Shipped', created_at: '2026-09-01T10:00:00Z' } })
+    await flush()
+
+    // A notification that has only just arrived is in the live feed. The view of what was filed away is not where it goes, and
+    // no reconciliation request is made on its behalf either.
+    expect(ids(store)).toEqual(['inb_archived'])
+    expect(calls).toHaveLength(1)
   })
 
   it('does not duplicate a row it already has', async () => {

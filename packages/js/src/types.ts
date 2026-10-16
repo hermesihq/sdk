@@ -67,6 +67,15 @@ export interface HermsInboxListParams {
   status?: HermsInboxReadStatus
   /** Category key(s), `?category=` (repeatable server-side). */
   category?: string | string[]
+  /**
+   * `true` lists only the archived items, `?archived=true`; omitted or `false` is the live feed, which never
+   * includes them. An exclusive view rather than a switch that adds them to the feed: archiving is an exit from
+   * the feed, and the two lists are never shown together. It combines with `status` and `category`.
+   *
+   * Needs a Hermesi server from October 2026 or later (`POST /inbox/{id}/unread` and this filter shipped
+   * together): an older one ignores the parameter and answers with the live feed.
+   */
+  archived?: boolean
   cursor?: string
   limit?: number
 }

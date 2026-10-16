@@ -5,6 +5,8 @@ import type { HermsInboxItem, HermsInboxReadStatus } from './types'
 export interface InboxFilter {
   status?: HermsInboxReadStatus
   category?: string
+  /** The archived items instead of the live feed (see `HermsInboxListParams.archived`). */
+  archived?: boolean
 }
 
 export interface InboxState {
@@ -46,7 +48,7 @@ export class InboxStore extends StoreBase<InboxState> {
     // empty state that flashes into a list.
     super({ items: [], isLoading: true, isLoadingMore: false, error: null, hasMore: false })
     this.#host = host
-    this.#filter = { status: filter.status, category: filter.category }
+    this.#filter = { status: filter.status, category: filter.category, archived: filter.archived }
   }
 
   /**
@@ -57,6 +59,9 @@ export class InboxStore extends StoreBase<InboxState> {
     this.#connected = true
     const stopListening = this.#host.addEventListener((event) => {
       if (event.type !== 'item.created') return
+      // A notification that has only just arrived is in the live feed. The archived view is a list of what the person
+      // has already filed away, and showing a new one at the top of it would put it in the wrong list.
+      if (this.#filter.archived) return
       // The wire keeps this frame deliberately minimal (id, title, created_at), so the
       // row shown immediately is real but partial: no body, category or action url. It is
       // replaced by the authoritative row when the reconciliation below lands.
@@ -99,8 +104,14 @@ export class InboxStore extends StoreBase<InboxState> {
    * does not blank between tabs.
    */
   setFilter(filter: InboxFilter): void {
-    if (filter.status === this.#filter.status && filter.category === this.#filter.category) return
-    this.#filter = { status: filter.status, category: filter.category }
+    if (
+      filter.status === this.#filter.status &&
+      filter.category === this.#filter.category &&
+      Boolean(filter.archived) === Boolean(this.#filter.archived)
+    ) {
+      return
+    }
+    this.#filter = { status: filter.status, category: filter.category, archived: filter.archived }
     if (this.#connected) this.refetch()
   }
 
@@ -187,6 +198,13 @@ export class InboxStore extends StoreBase<InboxState> {
 
   markRead = async (id: string): Promise<void> => {
     const updated = await this.#host.client.markRead(id)
+    this.setState((previous) => ({
+      items: previous.items.map((item) => (item.id === id ? updated : item)),
+    }))
+  }
+
+  markUnread = async (id: string): Promise<void> => {
+    const updated = await this.#host.client.markUnread(id)
     this.setState((previous) => ({
       items: previous.items.map((item) => (item.id === id ? updated : item)),
     }))
