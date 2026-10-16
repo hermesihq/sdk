@@ -25,12 +25,12 @@ The base URL is the client API, not the host root: every request is this string 
 
 ## Quick start
 
-With no bundler, one `<script>` tag. The file is self-contained (about 37 KB, 12 KB gzipped, with
+With no bundler, one `<script>` tag. The file is self-contained (about 39 KB, 12.5 KB gzipped, with
 `@hermesihq/js` and the styles inside) and registers `<hermes-inbox>` when it runs. Pin a version
-in production.
+in production: `@0.5` follows the 0.5 patch releases and stops there, because under `0.x` a minor release may change the API (see the changelog).
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@hermesihq/element@0.1/dist/hermes-inbox.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@hermesihq/element@0.5/dist/hermes-inbox.global.js"></script>
 <hermes-inbox public-key="hm_pk_prod_..." api-base-url="https://your-hermesi-host/v1/client"></hermes-inbox>
 
 <script>

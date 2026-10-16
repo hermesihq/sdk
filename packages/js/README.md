@@ -161,7 +161,7 @@ installs itself when it runs:
 ```js
 // sw.js
 self.HERMESI_PUSH_OPTIONS = { icon: '/icon-192.png' }
-importScripts('https://cdn.jsdelivr.net/npm/@hermesihq/js@0.2/dist/service-worker.global.js')
+importScripts('https://cdn.jsdelivr.net/npm/@hermesihq/js@0.3/dist/service-worker.global.js')
 ```
 
 It shows the notification Hermesi sent (`title`, `body`, `image`) and, when it is clicked, opens
