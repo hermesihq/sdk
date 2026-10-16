@@ -81,7 +81,7 @@ const toError = (value: unknown): Error => (value instanceof Error ? value : new
  * each of those three in every engine).
  */
 export class HermesInboxElement extends BaseElement {
-  static readonly observedAttributes = ['public-key', 'api-base-url', 'placement', 'color-scheme', 'locale']
+  static readonly observedAttributes = ['public-key', 'api-base-url', 'placement', 'color-scheme', 'locale', 'archived-view']
 
   /** Whether this browser has what the element is built on. Where it does not, nothing is drawn. */
   static get isSupported(): boolean {
@@ -103,6 +103,8 @@ export class HermesInboxElement extends BaseElement {
   #activeIndex = 0
   #awaitingList = false
   #lastError: Error | null = null
+  /** Whether the person has opened the archived list. Only meaningful while `archived-view` is set; see `#archivedOpen`. */
+  #showArchived = false
   #open = false
   #frame = 0
 
@@ -114,6 +116,7 @@ export class HermesInboxElement extends BaseElement {
   readonly #badge: HTMLSpanElement | null = null
   readonly #panel: HTMLDivElement | null = null
   readonly #title: HTMLParagraphElement | null = null
+  readonly #viewToggle: HTMLButtonElement | null = null
   readonly #markAll: HTMLButtonElement | null = null
   readonly #close: HTMLButtonElement | null = null
   readonly #body: HTMLDivElement | null = null
@@ -169,6 +172,11 @@ export class HermesInboxElement extends BaseElement {
     const title = document.createElement('p')
     title.className = 'herms-inbox__title'
     title.id = titleId
+    // "Archived" on the live feed, "Back" on the archive: one element, so that focus is still on it after it is pressed.
+    const viewToggle = document.createElement('button')
+    viewToggle.type = 'button'
+    viewToggle.className = 'herms-inbox__text-button'
+    viewToggle.hidden = true
     const markAll = document.createElement('button')
     markAll.type = 'button'
     markAll.className = 'herms-inbox__text-button'
@@ -178,7 +186,7 @@ export class HermesInboxElement extends BaseElement {
     close.append(icon('close'))
     const actions = document.createElement('div')
     actions.className = 'herms-inbox__header-actions'
-    actions.append(markAll, close)
+    actions.append(viewToggle, markAll, close)
     const header = document.createElement('div')
     header.className = 'herms-inbox__header'
     header.append(title, actions)
@@ -199,6 +207,7 @@ export class HermesInboxElement extends BaseElement {
     this.#badge = badge
     this.#panel = panel
     this.#title = title
+    this.#viewToggle = viewToggle
     this.#markAll = markAll
     this.#close = close
     this.#body = body
@@ -211,6 +220,7 @@ export class HermesInboxElement extends BaseElement {
     panel.addEventListener('beforetoggle', this.#onBeforeToggle as EventListener)
     panel.addEventListener('toggle', this.#onToggle as EventListener)
     root.addEventListener('focusout', this.#onFocusOut as EventListener)
+    viewToggle.addEventListener('click', () => this.#setShowArchived(!this.#showArchived))
     markAll.addEventListener('click', () => this.#guard(this.#runtime?.inbox.markAllRead()))
     close.addEventListener('click', () => this.close())
     this.#render()
@@ -253,6 +263,19 @@ export class HermesInboxElement extends BaseElement {
   }
   set locale(value: HermsLocale) {
     this.setAttribute('locale', value)
+  }
+
+  /**
+   * Adds an "Archived" control to the panel's header that switches it to the notifications the person has archived, with a way
+   * back. Off by default, so that upgrading changes nothing a person sees until the page asks for it. The archived list is only
+   * for looking back: its rows have no archive control (there is no way to un-archive), a notification can still be opened and
+   * marked read or unread, and the panel returns to the live feed whenever it is closed.
+   */
+  get archivedView(): boolean {
+    return this.hasAttribute('archived-view')
+  }
+  set archivedView(value: boolean) {
+    this.toggleAttribute('archived-view', Boolean(value))
   }
 
   /** Called before every request for a fresh subscriber token. Required; it cannot be an attribute. */
@@ -332,6 +355,7 @@ export class HermesInboxElement extends BaseElement {
 
   attributeChangedCallback(name: string): void {
     if (name === 'public-key' || name === 'api-base-url') this.#sync()
+    else if (name === 'archived-view') this.#applyArchived()
     else this.#render()
     if (name === 'placement' && this.#open) this.#position()
   }
@@ -390,6 +414,7 @@ export class HermesInboxElement extends BaseElement {
     }
     this.#seen = createSeenTracker()
     this.#lastError = null
+    this.#showArchived = false
   }
 
   #stop(): void {
@@ -415,9 +440,12 @@ export class HermesInboxElement extends BaseElement {
 
     if (!this.#open) return
     // "Seen" (the bell was opened) is distinct from "read": everything on screen is reported
-    // once, including rows that arrive later while the panel stays open.
-    const fresh = this.#seen.take(items)
-    if (fresh.length > 0) this.#guard(runtime.session.client.markSeen(fresh))
+    // once, including rows that arrive later while the panel stays open. Not the archived list:
+    // what is filed away is not new, and reporting it would be a request for nothing.
+    if (!this.#archivedOpen) {
+      const fresh = this.#seen.take(items)
+      if (fresh.length > 0) this.#guard(runtime.session.client.markSeen(fresh))
+    }
 
     // The panel opened before the first page arrived and took the focus itself to wait; hand it
     // to the first notification now, unless the person has moved it somewhere else meanwhile.
@@ -487,6 +515,11 @@ export class HermesInboxElement extends BaseElement {
     const panel = this.#panel!
     this.#open = false
     this.#awaitingList = false
+    // A panel that is opened again is the live feed, not wherever it was left.
+    if (this.#showArchived) {
+      this.#showArchived = false
+      this.#applyArchived()
+    }
     this.#bell!.setAttribute('aria-expanded', 'false')
     window.removeEventListener('scroll', this.#reposition, { capture: true })
     window.removeEventListener('resize', this.#reposition)
@@ -536,6 +569,25 @@ export class HermesInboxElement extends BaseElement {
     panel.dataset.side = side
   }
 
+  // ---- the archived list --------------------------------------------------------------------
+
+  /** Whether the archived list is what the panel shows. Turning `archived-view` off while it is open is the live feed again. */
+  get #archivedOpen(): boolean {
+    return this.archivedView && this.#showArchived
+  }
+
+  #setShowArchived(value: boolean): void {
+    this.#showArchived = value
+    this.#applyArchived()
+  }
+
+  /** Points the store at the list the panel should show. A no-op when it already does, which is what the store guarantees. */
+  #applyArchived(): void {
+    this.#runtime?.inbox.setFilter({ archived: this.#archivedOpen })
+    this.#activeIndex = 0
+    this.#render()
+  }
+
   // ---- rendering ----------------------------------------------------------------------------
 
   #itemButtons(): HTMLButtonElement[] {
@@ -564,7 +616,11 @@ export class HermesInboxElement extends BaseElement {
     this.#badge!.hidden = counts.unseen === 0
     this.#badge!.textContent = counts.unseen > 0 ? badgeText(counts.unseen) : ''
 
-    this.#title!.textContent = strings.panelTitle
+    const archivedOpen = this.#archivedOpen
+    this.#title!.textContent = archivedOpen ? strings.archivedTitle : strings.panelTitle
+    this.#viewToggle!.hidden = !this.archivedView
+    this.#viewToggle!.textContent = archivedOpen ? strings.backToInbox : strings.archivedView
+    this.#markAll!.hidden = archivedOpen
     this.#markAll!.textContent = strings.markAllRead
     this.#markAll!.disabled = counts.unread === 0
     this.#close!.setAttribute('aria-label', strings.close)
@@ -576,7 +632,8 @@ export class HermesInboxElement extends BaseElement {
     const body = this.#body!
     if (state.isLoading) return this.#showState(body, 'loading', () => this.#loadingState(strings))
     if (state.error) return this.#showState(body, 'error', () => this.#errorState(strings))
-    if (state.items.length === 0) return this.#showState(body, 'empty', () => this.#emptyState(strings))
+    const archivedOpen = this.#archivedOpen
+    if (state.items.length === 0) return this.#showState(body, archivedOpen ? 'empty-archived' : 'empty', () => this.#emptyState(strings, archivedOpen))
 
     if (!this.#list || body.dataset.state !== 'list') {
       body.replaceChildren()
@@ -594,7 +651,7 @@ export class HermesInboxElement extends BaseElement {
       body.append(list)
     }
     const list = this.#list
-    list.setAttribute('aria-label', strings.panelTitle)
+    list.setAttribute('aria-label', archivedOpen ? strings.archivedTitle : strings.panelTitle)
 
     const wanted = new Set(state.items.map((item) => item.id))
     for (const [id, row] of this.#rows) {
@@ -676,10 +733,10 @@ export class HermesInboxElement extends BaseElement {
     return box
   }
 
-  #emptyState(strings: HermsInboxStrings): HTMLElement {
+  #emptyState(strings: HermsInboxStrings, archived: boolean): HTMLElement {
     const box = document.createElement('div')
     box.className = 'herms-inbox__state'
-    box.textContent = strings.empty
+    box.textContent = archived ? strings.archivedEmpty : strings.empty
     return box
   }
 
@@ -697,13 +754,7 @@ export class HermesInboxElement extends BaseElement {
     })
     button.addEventListener('click', () => this.#activate(item.id))
 
-    const archive = document.createElement('button')
-    archive.type = 'button'
-    archive.className = 'herms-inbox__archive-button'
-    archive.append(icon('archive'))
-    archive.addEventListener('click', () => this.#guard(this.#runtime?.inbox.archive(item.id)))
-
-    row.append(button, archive)
+    row.append(button)
     return row
   }
 
@@ -732,13 +783,31 @@ export class HermesInboxElement extends BaseElement {
     }
     meta.textContent = relativeTime(item.createdAt, this.locale)
     button.dataset.unread = String(!item.readAt)
-    ;(row.lastElementChild as HTMLButtonElement).setAttribute('aria-label', `${strings.archive}: ${item.title}`)
     this.#syncUnreadButton(row, item, strings)
+    this.#syncArchiveButton(row, item, strings)
+  }
+
+  /** Last in the row on the live feed, and not there at all on the archive, which has no way to un-archive. */
+  #syncArchiveButton(row: HTMLLIElement, item: HermsInboxItem, strings: HermsInboxStrings): void {
+    let archive = row.querySelector<HTMLButtonElement>('.herms-inbox__archive-button')
+    if (this.#archivedOpen) {
+      archive?.remove()
+      return
+    }
+    if (!archive) {
+      archive = document.createElement('button')
+      archive.type = 'button'
+      archive.className = 'herms-inbox__archive-button'
+      archive.append(icon('archive'))
+      archive.addEventListener('click', () => this.#guard(this.#runtime?.inbox.archive(item.id)))
+      row.append(archive)
+    }
+    archive.setAttribute('aria-label', `${strings.archive}: ${item.title}`)
   }
 
   /**
    * The control that puts a read notification back to unread: in the row while the notification is read, gone while it is
-   * not, always between the notification and its archive button. Rows are reused as the list changes, so it is added and
+   * not, always between the notification and its archive button (when it has one). Rows are reused as the list changes, so it is added and
    * removed here rather than at creation.
    */
   #syncUnreadButton(row: HTMLLIElement, item: HermsInboxItem, strings: HermsInboxStrings): void {
@@ -760,7 +829,7 @@ export class HermesInboxElement extends BaseElement {
         // the notification instead, so that someone using the keyboard stays in the list.
         done?.then(() => notification.focus(), () => undefined)
       })
-      row.insertBefore(unread, row.lastElementChild)
+      row.insertBefore(unread, row.querySelector('.herms-inbox__archive-button'))
     }
     unread.setAttribute('aria-label', `${strings.markUnread}: ${item.title}`)
   }

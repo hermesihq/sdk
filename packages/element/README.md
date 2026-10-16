@@ -72,9 +72,10 @@ client. Moving the element elsewhere in the page does not reload anything.
 | `placement` | `bottom-start`, `bottom-end`, `top-start`, `top-end` | `bottom-end` |
 | `color-scheme` | `auto` follows the visitor's system; `light` or `dark` forces one | `auto` |
 | `locale` | `en`, `fr` | `en` |
+| `archived-view` | present or absent | absent. When present, adds an "Archived" control to the panel's header that switches it to the notifications the person has archived, with a way back. The archived list has no archive buttons (there is no way to un-archive) and no "Mark all as read"; the panel is the live feed again each time it opens. |
 
 Each attribute is also a property (`publicKey`, `apiBaseUrl`, `placement`, `colorScheme`,
-`locale`). `start` and `end` are logical: in a right-to-left page they swap sides. The panel
+`locale`, and `archivedView`, a boolean). `start` and `end` are logical: in a right-to-left page they swap sides. The panel
 flips to the other side when there is no room, and stays inside the viewport.
 
 | Property | |

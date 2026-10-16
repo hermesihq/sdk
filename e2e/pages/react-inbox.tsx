@@ -10,6 +10,7 @@ import '@hermesihq/react/styles.css'
  *   accent, radius                           (the `theme` prop)
  *   className                                (the host's class)
  *   placement, locale
+ *   archivedView=1                           (the `archivedView` prop)
  *   clip=1      wrap it in an ancestor that clips and is transformed
  *   tall=1      make the page scrollable
  *   vars        CSS declarations to put on <html>, the way a host themes it from a stylesheet
@@ -44,6 +45,7 @@ const placement = params.get('placement') as HermsInboxProps['placement'] | null
 if (placement) props.placement = placement
 const locale = params.get('locale')
 if (locale === 'en' || locale === 'fr') props.locale = locale
+if (params.get('archivedView') === '1') props.archivedView = true
 
 // Anything an unhandled rejection says is recorded, so a test can assert on it.
 ;(window as unknown as { rejections: string[] }).rejections = []

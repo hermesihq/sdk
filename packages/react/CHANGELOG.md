@@ -19,6 +19,20 @@ at least one real integration exists.
 Each release lists breaking changes first, because that is the only section that
 decides whether an upgrade is a decision or a formality.
 
+## 0.6.0 (2026-10-16)
+
+### Added
+
+- **An opt-in "Archived" view in the panel**: `<HermsInbox archivedView />`. It adds a control to the panel's header ("Archived",
+  "Archivées") that switches the panel to the notifications the person has archived; the same control, now "Back to notifications"
+  ("Retour aux notifications"), returns to the live feed. Off by default, so upgrading changes nothing anyone sees until you set the
+  prop. The archived list is for looking back: its rows have no archive button (there is no way to un-archive), "Mark all as read"
+  is not offered, a notification can still be opened and marked read or unread, and nothing in it is reported "seen". The panel is
+  the live feed again whenever it is closed. The panel's title and the list's name say "Archived" while it is open, and the control
+  keeps the keyboard focus when the view changes.
+- The four strings it needs, in English and French, are part of the component; there is nothing to translate on your side.
+- Needs a Hermesi server from October 2026 or later (`?archived=true` on the inbox list), as `useInbox({ archived: true })` already did.
+
 ## 0.5.0 (2026-10-16)
 
 ### Added

@@ -26,6 +26,13 @@ export interface HermsInboxStrings {
   archive: string
   /** The row control that puts a read notification back to unread. Its label is followed by the notification's title. */
   markUnread: string
+  /** The header control that opens the list of archived notifications. Only drawn when the host turned the archived view on. */
+  archivedView: string
+  /** The same control while that list is open: back to the live feed. */
+  backToInbox: string
+  /** The panel's title while the archived list is open. */
+  archivedTitle: string
+  archivedEmpty: string
   unreadDot: string
 }
 
@@ -43,6 +50,10 @@ const en: HermsInboxStrings = {
   loadingMore: 'Loading…',
   archive: 'Archive',
   markUnread: 'Mark as unread',
+  archivedView: 'Archived',
+  backToInbox: 'Back to notifications',
+  archivedTitle: 'Archived',
+  archivedEmpty: 'No archived notifications',
   unreadDot: 'Unread',
 }
 
@@ -60,6 +71,10 @@ const fr: HermsInboxStrings = {
   loadingMore: 'Chargement…',
   archive: 'Archiver',
   markUnread: 'Marquer comme non lu',
+  archivedView: 'Archivées',
+  backToInbox: 'Retour aux notifications',
+  archivedTitle: 'Archivées',
+  archivedEmpty: 'Aucune notification archivée',
   unreadDot: 'Non lu',
 }
 

@@ -5,7 +5,7 @@
 // The tidier fix is one line in `tsconfig.test.json`'s `include`; that file is off
 // limits in this change, so the reference lives here instead.
 import { useState, type ReactNode } from 'react'
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HermsClient } from '@hermesihq/js'
@@ -57,6 +57,8 @@ function json(body: unknown, status = 200): Response {
 
 interface Api {
   items?: WireItem[]
+  /** What `?archived=true` lists. */
+  archivedItems?: WireItem[]
   nextCursor?: string | null
   unread?: number
   unseen?: number
@@ -69,14 +71,16 @@ interface Api {
 interface Recorded {
   route: string
   body: unknown
+  search: string
 }
 
 function mount(api: Api, ui: ReactNode = <HermsInbox />): Recorded[] {
   const calls: Recorded[] = []
   vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-    const { pathname } = new URL(String(input))
+    const url = new URL(String(input))
+    const { pathname } = url
     const route = `${init?.method ?? 'GET'} ${pathname}`
-    calls.push({ route, body: typeof init?.body === 'string' ? JSON.parse(init.body) : null })
+    calls.push({ route, body: typeof init?.body === 'string' ? JSON.parse(init.body) : null, search: url.search })
 
     if (api.failing?.includes(route)) {
       return json({ error: { type: 'api_error', code: 'internal_error', message: 'no', request_id: 'r', detail: [], doc_url: '' } }, 500)
@@ -88,7 +92,8 @@ function mount(api: Api, ui: ReactNode = <HermsInbox />): Recorded[] {
     if (pathname.endsWith('/unread')) return json(wireItem(pathname.split('/').slice(-2)[0]!, { read_at: null }))
     if (pathname.endsWith('/archive') || pathname.endsWith('/read')) return json(wireItem('inb_1', { read_at: new Date().toISOString() }))
     if (api.listStatus) return new Response(null, { status: api.listStatus })
-    return json({ data: api.items ?? [], has_more: (api.nextCursor ?? null) !== null, next_cursor: api.nextCursor ?? null })
+    const listed = url.searchParams.get('archived') === 'true' ? api.archivedItems : api.items
+    return json({ data: listed ?? [], has_more: (api.nextCursor ?? null) !== null, next_cursor: api.nextCursor ?? null })
   })
 
   const client = new HermsClient({
@@ -342,6 +347,21 @@ describe('activating a notification', () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: /^Notification inb_2/ })))
   })
 
+  it('puts the mark-as-unread control before the archive button on a notification that was read while the panel was open', async () => {
+    mount({ items: [wireItem('inb_1')], unread: 1, unseen: 1 })
+    await openPanel()
+
+    await userEvent.click(await screen.findByRole('button', { name: /^Notification inb_1/ }))
+
+    // The row already had its archive button when the control appeared, which is the case the order is easy to get wrong in.
+    const control = await screen.findByRole('button', { name: 'Mark as unread: Notification inb_1' })
+    expect([...control.closest('li')!.querySelectorAll('button')].map((button) => button.className)).toEqual([
+      'herms-inbox__item',
+      'herms-inbox__unread-button',
+      'herms-inbox__archive-button',
+    ])
+  })
+
   it('reports a failed mark-unread to the host and leaves the notification read', async () => {
     const onError = vi.fn()
     mount(
@@ -355,6 +375,125 @@ describe('activating a notification', () => {
     await waitFor(() => expect(onError).toHaveBeenCalledTimes(1))
     expect((onError.mock.calls[0]![0] as { code?: string }).code).toBe('internal_error')
     expect(screen.getByRole('button', { name: 'Mark as unread: Notification inb_2' })).toBeTruthy()
+  })
+})
+
+describe('the archived view', () => {
+  const ARCHIVED = [wireItem('inb_9', { read_at: '2026-09-01T10:00:00Z' })]
+  const archivedControl = () => screen.queryByRole('button', { name: 'Archived' })
+  const listReads = (calls: Recorded[]) => calls.filter((call) => call.route === 'GET /v1/client/inbox')
+
+  it('adds no archived control unless the host turned the view on', async () => {
+    mount({ items: [wireItem('inb_1')], archivedItems: ARCHIVED, unread: 1, unseen: 1 })
+    await openPanel()
+    await screen.findByRole('button', { name: /^Notification inb_1/ })
+
+    // Upgrading must not change what anyone sees until they ask for it.
+    expect(archivedControl()).toBeNull()
+  })
+
+  it('switches to the archived notifications, which can be opened and marked unread but not archived again', async () => {
+    const calls = mount({ items: [wireItem('inb_1')], archivedItems: ARCHIVED, unread: 1, unseen: 1 }, <HermsInbox archivedView />)
+    await openPanel()
+    await screen.findByRole('button', { name: /^Notification inb_1/ })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Archived' }))
+
+    // The archive, and only the archive: the live row is gone, and the request asked for what is filed away.
+    expect(await screen.findByRole('button', { name: /^Notification inb_9/ })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Notification inb_1/ })).toBeNull()
+    expect(listReads(calls).at(-1)?.search).toContain('archived=true')
+    // The dialog is named by its title, and the title says where the person is.
+    expect(screen.getByRole('dialog', { name: 'Archived' })).toBeTruthy()
+    expect(screen.getByRole('list', { name: 'Archived' })).toBeTruthy()
+    // There is no way to un-archive, so no control that pretends to be one; the others a row has stay.
+    expect(screen.queryByRole('button', { name: /^Archive:/ })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Mark as unread: Notification inb_9' })).toBeTruthy()
+    // "Mark all as read" is about the live feed, and the archive is not it.
+    expect(screen.queryByRole('button', { name: 'Mark all as read' })).toBeNull()
+  })
+
+  it('goes back to the live feed from the archive, and says so when nothing is archived', async () => {
+    const calls = mount({ items: [wireItem('inb_1')], archivedItems: [], unread: 1, unseen: 1 }, <HermsInbox archivedView />)
+    await openPanel()
+    await screen.findByRole('button', { name: /^Notification inb_1/ })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Archived' }))
+    expect(await screen.findByText('No archived notifications')).toBeTruthy()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Back to notifications' }))
+    expect(await screen.findByRole('button', { name: 'Archive: Notification inb_1' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Mark all as read' })).toBeTruthy()
+    expect(listReads(calls).at(-1)?.search).not.toContain('archived')
+  })
+
+  it('opens on the live feed again after it was closed on the archive', async () => {
+    mount({ items: [wireItem('inb_1')], archivedItems: ARCHIVED, unread: 1, unseen: 1 }, <HermsInbox archivedView />)
+    await openPanel()
+    await userEvent.click(await screen.findByRole('button', { name: 'Archived' }))
+    await screen.findByRole('button', { name: /^Notification inb_9/ })
+
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    await openPanel()
+
+    // Not wherever it was left: the bell is for what is new.
+    expect(await screen.findByRole('button', { name: /^Notification inb_1/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Archived' })).toBeTruthy()
+  })
+
+  it('does not report the archived notifications as seen', async () => {
+    const calls = mount({ items: [wireItem('inb_1')], archivedItems: ARCHIVED, unread: 1, unseen: 1 }, <HermsInbox archivedView />)
+    await openPanel()
+    await waitFor(() => expect(calls.some((call) => call.route === 'POST /v1/client/inbox/seen')).toBe(true))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Archived' }))
+    await screen.findByRole('button', { name: /^Notification inb_9/ })
+
+    // What is filed away is not new: telling the server it was just seen would be a request for nothing.
+    expect(calls.filter((call) => call.route === 'POST /v1/client/inbox/seen').some((call) => JSON.stringify(call.body).includes('inb_9'))).toBe(false)
+  })
+
+  it('keeps the focus on the control that switched the view', async () => {
+    mount({ items: [wireItem('inb_1')], archivedItems: ARCHIVED, unread: 1, unseen: 1 }, <HermsInbox archivedView />)
+    await openPanel()
+    const toggle = await screen.findByRole('button', { name: 'Archived' })
+
+    await userEvent.click(toggle)
+    await screen.findByRole('button', { name: /^Notification inb_9/ })
+
+    // The same control, now labelled for the way back: a keyboard user who pressed it is not sent to the page.
+    expect(document.activeElement).toBe(toggle)
+    expect(toggle.textContent).toBe('Back to notifications')
+  })
+
+  it('reflects archived-view as a property, and is the live feed again when it is turned off while open', async () => {
+    let turnOff!: () => void
+    function Switchable() {
+      const [on, setOn] = useState(true)
+      turnOff = () => setOn(false)
+      return <HermsInbox archivedView={on} />
+    }
+    mount({ items: [wireItem('inb_1')], archivedItems: ARCHIVED, unread: 1, unseen: 1 }, <Switchable />)
+    await openPanel()
+    await userEvent.click(await screen.findByRole('button', { name: 'Archived' }))
+    await screen.findByRole('button', { name: /^Notification inb_9/ })
+
+    act(() => turnOff())
+
+    expect(await screen.findByRole('button', { name: /^Notification inb_1/ })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Archived' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Back to notifications' })).toBeNull()
+  })
+
+  it('names the archived view in French too', async () => {
+    mount({ items: [wireItem('inb_1')], archivedItems: [], unread: 1, unseen: 1 }, <HermsInbox archivedView locale="fr" />)
+    await openPanel()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Archivées' }))
+
+    expect(await screen.findByText('Aucune notification archivée')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Retour aux notifications' })).toBeTruthy()
   })
 })
 

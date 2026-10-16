@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 import { bell, drawn, notifications, open, panel, show } from './helpers'
 
@@ -345,6 +346,100 @@ test.describe('the notifications', () => {
 
     await expect(page.getByRole('button', { name: 'Notifications, 2 non lues' })).toBeVisible()
   })
+})
+
+test.describe('the archived view', () => {
+  const ARCHIVED = [{ id: 'inb_old', title: 'Old receipt', body: 'Filed away.', read_at: '2026-08-01T10:00:00Z', seen_at: '2026-08-01T10:00:00Z' }]
+  const archivedList = (page: Page) => page.getByRole('list', { name: 'Archived' })
+
+  test('is not there unless the page asks for it', async ({ page }) => {
+    await show(page, { scenario: { archived: ARCHIVED } })
+    await open(page)
+
+    await expect(page.getByRole('button', { name: 'Archived' })).toHaveCount(0)
+  })
+
+  test('opens from the header with what was archived, has no way to archive again, and comes back', async ({ page }) => {
+    await show(page, { query: { archivedView: '1' }, scenario: { archived: ARCHIVED } })
+    await open(page)
+    // Archived from the feed a moment ago, and what was archived before: both are in the archive.
+    await page.getByRole('button', { name: 'Archive: Order shipped' }).click()
+    await expect(page.getByText('Order shipped')).toHaveCount(0)
+
+    // From the keyboard: WebKit does not focus a button that is clicked, so a click would say nothing about where the focus goes.
+    await page.getByRole('button', { name: 'Archived' }).focus()
+    await page.keyboard.press('Enter')
+
+    await expect(archivedList(page)).toBeVisible()
+    await expect(archivedList(page).getByRole('listitem')).toHaveCount(2)
+    await expect(archivedList(page)).toContainText('Order shipped')
+    await expect(archivedList(page)).toContainText('Old receipt')
+    // The live feed is not drawn under it, and nothing in the archive can be archived again.
+    await expect(page.getByText('Invoice paid')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /^Archive:/ })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Mark all as read' })).toBeHidden()
+    await expect(page.getByRole('dialog', { name: 'Archived' })).toBeVisible()
+    // The control that was pressed is the one that took the person back, and still has the focus.
+    await expect(page.getByRole('button', { name: 'Back to notifications' })).toBeFocused()
+
+    await page.getByRole('button', { name: 'Back to notifications' }).click()
+
+    await expect(page.getByText('Invoice paid')).toBeVisible()
+    await expect(page.getByText('Old receipt')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Archive: Invoice paid' })).toBeVisible()
+  })
+
+  test('puts a notification read in the archive back to unread, and opens on the live feed after it was closed', async ({ page }) => {
+    const inbox = await show(page, { query: { archivedView: '1' }, scenario: { archived: ARCHIVED } })
+    await open(page)
+    await page.getByRole('button', { name: 'Archived' }).click()
+
+    await page.getByRole('button', { name: 'Mark as unread: Old receipt' }).click()
+
+    await expect.poll(async () => (await inbox.requests()).includes('POST /inbox/inb_old/unread')).toBe(true)
+    await expect(archivedList(page).locator('.herms-inbox__item').filter({ hasText: 'Old receipt' })).toHaveAttribute('data-unread', 'true')
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toBeHidden()
+    await open(page)
+
+    await expect(page.getByRole('button', { name: 'Archived' })).toBeVisible()
+    await expect(page.getByText('Old receipt')).toHaveCount(0)
+  })
+
+  for (const locale of ['en', 'fr'] as const) {
+    test(`keeps its header on one line and inside the panel (${locale}), on the feed and on the archive`, async ({ page }) => {
+      await show(page, { query: { archivedView: '1', locale }, scenario: { archived: ARCHIVED } })
+      await open(page)
+      const toggleName = locale === 'en' ? 'Archived' : 'Archivées'
+
+      const measure = () =>
+        page.locator('.herms-inbox__header').evaluate((header) => {
+          const frame = header.getBoundingClientRect()
+          return {
+            overflows: header.scrollWidth > header.clientWidth,
+            controls: [...header.querySelectorAll<HTMLElement>('button')]
+              .filter((button) => button.offsetParent !== null)
+              .map((button) => {
+                const box = button.getBoundingClientRect()
+                return { label: button.textContent || button.getAttribute('aria-label'), inside: box.left >= frame.left - 0.5 && box.right <= frame.right + 0.5, oneLine: box.height < 40 }
+              }),
+          }
+        })
+
+      const onFeed = await measure()
+      expect(onFeed.overflows).toBe(false)
+      expect(onFeed.controls.filter((control) => !control.inside || !control.oneLine)).toEqual([])
+      expect(onFeed.controls.length).toBe(3)
+
+      await page.getByRole('button', { name: toggleName }).click()
+
+      const onArchive = await measure()
+      expect(onArchive.overflows).toBe(false)
+      expect(onArchive.controls.filter((control) => !control.inside || !control.oneLine)).toEqual([])
+      expect(onArchive.controls.length).toBe(2)
+    })
+  }
 })
 
 test.describe('in real time', () => {

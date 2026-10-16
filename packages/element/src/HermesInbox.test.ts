@@ -69,6 +69,8 @@ function json(body: unknown, status = 200): Response {
 
 interface Api {
   items?: WireItem[]
+  /** What `?archived=true` lists. */
+  archivedItems?: WireItem[]
   nextCursor?: string | null
   unread?: number
   unseen?: number
@@ -84,15 +86,17 @@ interface Recorded {
   route: string
   body: unknown
   authorization: string | null
+  search: string
 }
 
 function stubApi(api: Api): Recorded[] {
   const calls: Recorded[] = []
   vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-    const { pathname } = new URL(String(input))
+    const url = new URL(String(input))
+    const { pathname } = url
     const route = `${init?.method ?? 'GET'} ${pathname}`
     const headers = new Headers(init?.headers)
-    calls.push({ route, body: typeof init?.body === 'string' ? JSON.parse(init.body) : null, authorization: headers.get('authorization') })
+    calls.push({ route, body: typeof init?.body === 'string' ? JSON.parse(init.body) : null, authorization: headers.get('authorization'), search: url.search })
 
     if (api.failing?.includes(route)) return json({ error: { type: 'api_error', code: 'internal_error', message: 'no', request_id: 'r', detail: [], doc_url: '' } }, 500)
     if (pathname.endsWith('/inbox/counts')) return json({ unread: api.unread ?? 0, unseen: api.unseen ?? 0 })
@@ -102,7 +106,8 @@ function stubApi(api: Api): Recorded[] {
     if (pathname.endsWith('/archive') || pathname.endsWith('/read')) return json(wireItem('inb_1', { read_at: new Date().toISOString() }))
     if (api.holdList) await api.holdList
     if (api.listStatus) return new Response(null, { status: api.listStatus })
-    return json({ data: api.items ?? [], has_more: (api.nextCursor ?? null) !== null, next_cursor: api.nextCursor ?? null })
+    const listed = url.searchParams.get('archived') === 'true' ? api.archivedItems : api.items
+    return json({ data: listed ?? [], has_more: (api.nextCursor ?? null) !== null, next_cursor: api.nextCursor ?? null })
   })
   return calls
 }
@@ -338,6 +343,21 @@ describe('activating a notification', () => {
     await waitFor(() => expect(element.shadowRoot!.activeElement).toBe(queries(element).getByRole('button', { name: /^Notification inb_2/ })))
   })
 
+  it('puts the mark-as-unread control before the archive button on a notification that was read while the panel was open', async () => {
+    const { element } = mount({ items: [wireItem('inb_1')], unread: 1, unseen: 1 })
+    await openPanel(element)
+
+    await userEvent.click(await queries(element).findByRole('button', { name: /^Notification inb_1/ }))
+
+    // The row already had its archive button when the control appeared, which is the case the order is easy to get wrong in.
+    const control = await queries(element).findByRole('button', { name: 'Mark as unread: Notification inb_1' })
+    expect([...control.closest('li')!.querySelectorAll('button')].map((button) => button.className)).toEqual([
+      'herms-inbox__item',
+      'herms-inbox__unread-button',
+      'herms-inbox__archive-button',
+    ])
+  })
+
   it('reports a failed mark-unread to the host and leaves the notification read', async () => {
     const { element } = mount({
       items: [wireItem('inb_2', { read_at: '2026-09-01T10:00:00Z' })],
@@ -354,6 +374,127 @@ describe('activating a notification', () => {
     await waitFor(() => expect(errors).toHaveLength(1))
     expect((errors[0] as { code?: string }).code).toBe('internal_error')
     expect(queries(element).getByRole('button', { name: 'Mark as unread: Notification inb_2' })).toBeTruthy()
+  })
+})
+
+describe('the archived view', () => {
+  const ARCHIVED = [wireItem('inb_9', { read_at: '2026-09-01T10:00:00Z' })]
+  const withView = (el: HermesInboxElement) => el.setAttribute('archived-view', '')
+  const toggle = (element: HermesInboxElement) => element.shadowRoot!.querySelector<HTMLButtonElement>('.herms-inbox__header-actions .herms-inbox__text-button')!
+  const archiveListReads = (calls: Recorded[]) => calls.filter((call) => call.route === 'GET /v1/client/inbox')
+
+  it('adds no archived control unless the host turned the view on', async () => {
+    const { element } = mount({ items: [wireItem('inb_1')], archivedItems: ARCHIVED, unread: 1, unseen: 1 })
+    await openPanel(element)
+    await queries(element).findByRole('button', { name: /^Notification inb_1/ })
+
+    // Upgrading must not change what anyone sees until they ask for it.
+    expect(toggle(element).hidden).toBe(true)
+  })
+
+  it('switches to the archived notifications, which can be opened and marked unread but not archived again', async () => {
+    const { element, calls } = mount({ items: [wireItem('inb_1')], archivedItems: ARCHIVED, unread: 1, unseen: 1 }, withView)
+    await openPanel(element)
+    await queries(element).findByRole('button', { name: /^Notification inb_1/ })
+
+    await userEvent.click(queries(element).getByRole('button', { name: 'Archived' }))
+
+    // The archive, and only the archive: the live row is gone, and the request asked for what is filed away.
+    expect(await queries(element).findByRole('button', { name: /^Notification inb_9/ })).toBeTruthy()
+    expect(queries(element).queryByRole('button', { name: /^Notification inb_1/ })).toBeNull()
+    expect(archiveListReads(calls).at(-1)?.search).toContain('archived=true')
+    // The dialog is named by its title, and the title says where the person is.
+    const dialog = queries(element).getByRole('dialog', { hidden: true })
+    expect(element.shadowRoot!.getElementById(dialog.getAttribute('aria-labelledby')!)?.textContent).toBe('Archived')
+    expect(queries(element).getByRole('list', { name: 'Archived' })).toBeTruthy()
+    // There is no way to un-archive, so no control that pretends to be one; the others a row has stay.
+    expect(queries(element).queryByRole('button', { name: /^Archive:/ })).toBeNull()
+    expect(queries(element).getByRole('button', { name: 'Mark as unread: Notification inb_9' })).toBeTruthy()
+    // "Mark all as read" is about the live feed, and the archive is not it.
+    // Hidden, not removed, so a role query would skip it: look it up by its text.
+    const markAll = [...element.shadowRoot!.querySelectorAll('button')].find((button) => button.textContent === 'Mark all as read')
+    expect(markAll?.hidden).toBe(true)
+  })
+
+  it('goes back to the live feed from the archive, and says so when nothing is archived', async () => {
+    const { element, calls } = mount({ items: [wireItem('inb_1')], archivedItems: [], unread: 1, unseen: 1 }, withView)
+    await openPanel(element)
+    await queries(element).findByRole('button', { name: /^Notification inb_1/ })
+
+    await userEvent.click(queries(element).getByRole('button', { name: 'Archived' }))
+    expect(await queries(element).findByText('No archived notifications')).toBeTruthy()
+
+    await userEvent.click(queries(element).getByRole('button', { name: 'Back to notifications' }))
+    expect(await queries(element).findByRole('button', { name: 'Archive: Notification inb_1' })).toBeTruthy()
+    expect(queries(element).getByRole('button', { name: 'Mark all as read' }).hidden).toBe(false)
+    expect(archiveListReads(calls).at(-1)?.search).not.toContain('archived')
+  })
+
+  it('opens on the live feed again after it was closed on the archive', async () => {
+    const { element } = mount({ items: [wireItem('inb_1')], archivedItems: ARCHIVED, unread: 1, unseen: 1 }, withView)
+    await openPanel(element)
+    await userEvent.click(await queries(element).findByRole('button', { name: 'Archived' }))
+    await queries(element).findByRole('button', { name: /^Notification inb_9/ })
+
+    element.close()
+    await waitFor(() => expect(element.isOpen).toBe(false))
+    await openPanel(element)
+
+    // Not wherever it was left: the bell is for what is new.
+    expect(await queries(element).findByRole('button', { name: /^Notification inb_1/ })).toBeTruthy()
+    expect(queries(element).getByRole('button', { name: 'Archived' })).toBeTruthy()
+  })
+
+  it('does not report the archived notifications as seen', async () => {
+    const { element, calls } = mount({ items: [wireItem('inb_1')], archivedItems: ARCHIVED, unread: 1, unseen: 1 }, withView)
+    await openPanel(element)
+    await waitFor(() => expect(calls.some((call) => call.route === 'POST /v1/client/inbox/seen')).toBe(true))
+
+    await userEvent.click(queries(element).getByRole('button', { name: 'Archived' }))
+    await queries(element).findByRole('button', { name: /^Notification inb_9/ })
+
+    // What is filed away is not new: telling the server it was just seen would be a request for nothing.
+    expect(calls.filter((call) => call.route === 'POST /v1/client/inbox/seen').some((call) => JSON.stringify(call.body).includes('inb_9'))).toBe(false)
+  })
+
+  it('keeps the focus on the control that switched the view', async () => {
+    const { element } = mount({ items: [wireItem('inb_1')], archivedItems: ARCHIVED, unread: 1, unseen: 1 }, withView)
+    await openPanel(element)
+    const control = await queries(element).findByRole('button', { name: 'Archived' })
+
+    await userEvent.click(control)
+    await queries(element).findByRole('button', { name: /^Notification inb_9/ })
+
+    // The same control, now labelled for the way back: a keyboard user who pressed it is not sent to the page.
+    expect(element.shadowRoot!.activeElement).toBe(control)
+    expect(control.textContent).toBe('Back to notifications')
+  })
+
+  it('names the archived view in French too', async () => {
+    const { element } = mount({ items: [wireItem('inb_1')], archivedItems: [], unread: 1, unseen: 1 }, (el) => {
+      withView(el)
+      el.setAttribute('locale', 'fr')
+    })
+    await openPanel(element)
+
+    await userEvent.click(await queries(element).findByRole('button', { name: 'Archivées' }))
+
+    expect(await queries(element).findByText('Aucune notification archivée')).toBeTruthy()
+    expect(queries(element).getByRole('button', { name: 'Retour aux notifications' })).toBeTruthy()
+  })
+
+  it('reflects archived-view as a property, and is the live feed again when it is turned off while open', async () => {
+    const { element } = mount({ items: [wireItem('inb_1')], archivedItems: ARCHIVED, unread: 1, unseen: 1 }, withView)
+    expect(element.archivedView).toBe(true)
+    await openPanel(element)
+    await userEvent.click(await queries(element).findByRole('button', { name: 'Archived' }))
+    await queries(element).findByRole('button', { name: /^Notification inb_9/ })
+
+    element.archivedView = false
+
+    expect(element.hasAttribute('archived-view')).toBe(false)
+    expect(await queries(element).findByRole('button', { name: /^Notification inb_1/ })).toBeTruthy()
+    expect(toggle(element).hidden).toBe(true)
   })
 })
 

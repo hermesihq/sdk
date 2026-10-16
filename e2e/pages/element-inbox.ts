@@ -41,6 +41,7 @@ const placement = params.get('placement')
 if (placement) element.setAttribute('placement', placement)
 const locale = params.get('locale')
 if (locale) element.setAttribute('locale', locale)
+if (params.get('archivedView') === '1') element.setAttribute('archived-view', '')
 // There is no `theme` property: a host sets the variables on the element, which is what this does.
 const accent = params.get('accent')
 if (accent) element.style.setProperty('--herms-color-accent', accent)
