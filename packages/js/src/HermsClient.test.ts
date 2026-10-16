@@ -256,6 +256,24 @@ describe('URL building', () => {
     expect(calls.map((call) => new URL(call.url).searchParams.get('read'))).toEqual(['false', 'true'])
   })
 
+  it('asks for the archived items only when told to, and sends nothing for the live feed', async () => {
+    const calls = stubFetch(() => json({ data: [], has_more: false, next_cursor: null }))
+    const subject = client()
+
+    await subject.listInbox({ archived: true })
+    await subject.listInbox({ archived: false })
+    await subject.listInbox()
+    await subject.listInbox({ archived: true, status: 'read', category: 'billing' })
+
+    const params = calls.map((call) => new URL(call.url).searchParams)
+    // `archived=false` is the default, and an absent parameter reads the same on every server. Sending it would only be a
+    // second spelling of "the live feed".
+    expect(params.map((p) => p.get('archived'))).toEqual(['true', null, null, 'true'])
+    // It is an exclusive view that combines with the other filters rather than replacing them.
+    expect(params[3]?.get('read')).toBe('true')
+    expect(params[3]?.get('category')).toBe('billing')
+  })
+
   it('repeats the category parameter for a multi-category filter', async () => {
     const calls = stubFetch(() => json({ data: [], has_more: false, next_cursor: null }))
 
@@ -367,6 +385,38 @@ describe('writes', () => {
     // than "fine, nothing to do".
     expect(await client().markSeen([])).toEqual({ updated: 0 })
     expect(calls).toHaveLength(0)
+  })
+
+  it('marks an item unread through the route the API exposes, and returns the row the server sent', async () => {
+    const calls = stubFetch(() => json({ ...WIRE_ITEM, read_at: null, seen_at: '2026-09-01T09:30:00Z' }))
+
+    const item = await client().markUnread(WIRE_ITEM.id)
+
+    expect(calls.map((call) => `${call.method} ${new URL(call.url).pathname}`)).toEqual([
+      `POST /v1/client/inbox/${WIRE_ITEM.id}/unread`,
+    ])
+    expect(item.readAt).toBeNull()
+    // Coming back to an item is not "the badge should light up again": the server leaves `seenAt` alone and so does the row.
+    expect(item.seenAt).toBe('2026-09-01T09:30:00Z')
+  })
+
+  it('encodes the id of an item being marked unread into the path', async () => {
+    const calls = stubFetch(() => json(WIRE_ITEM))
+
+    await client().markUnread('inb_1/../counts?x=1')
+
+    const url = new URL(onlyCall(calls).url)
+    expect(url.pathname).toBe('/v1/client/inbox/inb_1%2F..%2Fcounts%3Fx%3D1/unread')
+    expect(url.search).toBe('')
+  })
+
+  it('reports an item that is not this subscriber\'s as the 404 it is', async () => {
+    stubFetch(() => json({ error: { type: 'not_found', code: 'inbox_item_not_found', message: 'No inbox item with that id.', detail: [], request_id: 'req_1', doc_url: '' } }, 404))
+
+    const error = await rejection(client().markUnread('inb_someone_else'))
+
+    expect(error).toBeInstanceOf(HermsApiError)
+    expect((error as HermsApiError).status).toBe(404)
   })
 
   it('archives and deletes through the routes the API exposes', async () => {

@@ -126,6 +126,28 @@ describe('loading the list', () => {
     expect(calls[0]?.query.get('category')).toBe('billing')
   })
 
+  it('passes the archived view to the API, and reloads when it changes', async () => {
+    const { wrapper, calls } = harness((call) => page([wireItem(call.query.get('archived') === 'true' ? 'inb_archived' : 'inb_live')]))
+    const { result, rerender } = renderHook((props: { archived?: boolean }) => useInbox(props), { wrapper, initialProps: {} })
+    await waitFor(() => expect(result.current.items.map((i) => i.id)).toEqual(['inb_live']))
+
+    rerender({ archived: true })
+
+    await waitFor(() => expect(result.current.items.map((i) => i.id)).toEqual(['inb_archived']))
+    expect(calls.map((call) => call.query.get('archived'))).toEqual([null, 'true'])
+  })
+
+  it('asks for the archived view from the first request, not for the live feed and then again', async () => {
+    const { wrapper, calls } = harness(() => page([wireItem('inb_archived')]))
+
+    const { result } = renderHook(() => useInbox({ archived: true }), { wrapper })
+    await waitFor(() => expect(result.current.items.map((i) => i.id)).toEqual(['inb_archived']))
+
+    // The filter given on the first render is the one the store is created with, so there is no wasted request for the live
+    // feed that a reload then replaces.
+    expect(calls.filter((call) => call.route === 'GET /v1/client/inbox').map((call) => call.query.get('archived'))).toEqual(['true'])
+  })
+
   it('reloads when the filter changes', async () => {
     const { wrapper, calls } = harness((call) => page([wireItem(call.query.get('read') === 'false' ? 'inb_unread' : 'inb_any')]))
 
@@ -235,6 +257,24 @@ describe('mutations', () => {
     expect(result.current.items[1]?.readAt).toBeNull()
     // One list read, one write. A refetch-after-every-write hook turns a panel with ten
     // rows into eleven requests.
+    expect(calls.filter((call) => call.route === 'GET /v1/client/inbox')).toHaveLength(1)
+  })
+
+  it('puts a read row back to unread with the row the server returned', async () => {
+    const { wrapper, calls } = harness((call) =>
+      call.route.endsWith('/unread')
+        ? json(wireItem('inb_1', { read_at: null }))
+        : page([wireItem('inb_1', { read_at: '2026-09-01T10:00:00Z' })]),
+    )
+    const { result } = renderHook(() => useInbox(), { wrapper })
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+
+    await act(async () => {
+      await result.current.markUnread('inb_1')
+    })
+
+    expect(result.current.items[0]?.readAt).toBeNull()
+    expect(calls.filter((call) => call.route === 'POST /v1/client/inbox/inb_1/unread')).toHaveLength(1)
     expect(calls.filter((call) => call.route === 'GET /v1/client/inbox')).toHaveLength(1)
   })
 

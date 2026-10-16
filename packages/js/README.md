@@ -84,7 +84,7 @@ Three objects, and each does one job:
 | Store | Holds | Notable methods |
 |---|---|---|
 | `CountsStore` | `{ unread, unseen, isLoading }` | `connect()` |
-| `InboxStore` | `{ items, isLoading, isLoadingMore, error, hasMore }` | `loadMore()`, `markRead(id)`, `markAllRead()`, `archive(id)`, `remove(id)`, `refetch()`, `setFilter({ status, category })` |
+| `InboxStore` | `{ items, isLoading, isLoadingMore, error, hasMore }` | `loadMore()`, `markRead(id)`, `markUnread(id)`, `markAllRead()`, `archive(id)`, `remove(id)`, `refetch()`, `setFilter({ status, category, archived })` |
 | `PreferencesStore` | `{ preferences, isLoading, error }` | `setPreference(update)`, `reload()` |
 
 Every store has the same three things, which is what makes one easy to bind to anything:

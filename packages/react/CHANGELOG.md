@@ -19,6 +19,16 @@ at least one real integration exists.
 Each release lists breaking changes first, because that is the only section that
 decides whether an upgrade is a decision or a formality.
 
+## 0.4.0 (2026-10-16)
+
+### Added
+
+- **`useInbox` returns `markUnread(id)`** and accepts **`archived: true`** (the archived notifications instead of the live feed,
+  combinable with `status` and `category`). Both come from `@hermesihq/js` 0.3.0, which this release now requires (`^0.3.0`): a
+  project that had `@hermesihq/js` at 0.2 gets 0.3 alongside it. They need a Hermesi server from October 2026 or later.
+- `<HermsInbox />` itself is unchanged: its panel is still the live feed, with no "mark as unread" control and no archived view.
+  Build one with `useInbox` if you need it.
+
 ## 0.3.0 (2026-10-04)
 
 ### Changed (read this first)

@@ -19,6 +19,19 @@ least one real integration exists.
 Each release lists breaking changes first, because that is the only section that decides
 whether an upgrade is a decision or a formality.
 
+## 0.3.0 (2026-10-16)
+
+### Added
+
+- **`markUnread(id)`** on the client, `markUnread` on `InboxStore`: puts a read notification back to unread, so it counts
+  towards the badge again. It returns the updated row, is safe to call twice, and leaves `seenAt` alone (coming back to an item
+  is not "light the badge up again").
+- **`archived: true`** on `listInbox` and on the `InboxStore` filter: the archived notifications instead of the live feed. It
+  combines with `status` and `category`. In that view a notification that arrives live is not added to the top, because it
+  belongs to the live feed. There is no way to un-archive an item: it can be marked read or unread, or removed.
+- Both need a Hermesi server from October 2026 or later. An older one ignores `archived` and answers with the live feed, and has
+  no `/unread` route.
+
 ## 0.2.0 (2026-10-03)
 
 ### Added

@@ -352,6 +352,8 @@ export class HermsClient {
         cursor: params.cursor,
         read: params.status === undefined ? undefined : params.status === 'read' ? 'true' : 'false',
         category: params.category,
+        // Only `true` is sent: `false` is the default and an absent parameter reads the same on every server.
+        archived: params.archived ? 'true' : undefined,
       },
       expects: EXPECT_PAGE,
     })
@@ -371,6 +373,16 @@ export class HermsClient {
 
   async markRead(id: string): Promise<HermsInboxItem> {
     const wire = await this.request<WireInboxItem>(`/inbox/${encodeURIComponent(id)}/read`, { method: 'POST', expects: EXPECT_ITEM })
+    return fromWireItem(wire)
+  }
+
+  /**
+   * Puts a read item back to unread, so it counts towards `unread` again. Idempotent: an item that is already unread
+   * is returned as it is. It leaves `seenAt` alone: coming back to an item is not "the badge should light up again".
+   * A `HermsApiError` with status 404 for an id that is not this subscriber's.
+   */
+  async markUnread(id: string): Promise<HermsInboxItem> {
+    const wire = await this.request<WireInboxItem>(`/inbox/${encodeURIComponent(id)}/unread`, { method: 'POST', expects: EXPECT_ITEM })
     return fromWireItem(wire)
   }
 
