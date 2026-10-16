@@ -53,8 +53,8 @@ client each render closes and reopens the real-time connection each render.
 
 A real `<button>` with an accessible name that includes the unread count, and a panel that is a named dialog holding a
 list of buttons: arrow keys, `Home` and `End` move between notifications (every control is also reachable with `Tab`), and
-`Escape` closes it. It is a list and not an ARIA menu because each row holds two controls, the notification and its archive
-button, and a menu may own only menu items. Windows high contrast mode is handled: the unseen badge and the unread dot,
+`Escape` closes it. It is a list and not an ARIA menu because each row holds several controls (the notification, a "mark as unread" button once it has
+been read, and its archive button), and a menu may own only menu items. Windows high contrast mode is handled: the unseen badge and the unread dot,
 which are colour alone, keep an outline and a fill in the user's own colours.
 
 | Prop | Default | |

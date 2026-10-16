@@ -308,6 +308,38 @@ test.describe('the notifications', () => {
     expect(requests).not.toContain('POST /inbox/inb_1/read')
   })
 
+  test('mark a read notification unread from the row, without opening it, and stay in the list', async ({ page }) => {
+    const inbox = await show(page)
+    await open(page)
+    const welcome = notifications(page).filter({ hasText: 'Welcome' })
+    await expect(welcome).toHaveAttribute('data-unread', 'false')
+
+    await page.getByRole('button', { name: 'Mark as unread: Welcome' }).click()
+
+    // Unread again: the dot is back, and the control, which has nothing left to offer, has left the row.
+    await expect(welcome).toHaveAttribute('data-unread', 'true')
+    await expect(page.getByRole('button', { name: 'Mark as unread: Welcome' })).toHaveCount(0)
+    // Its focus went with it, to the page, unless the component puts it back on the notification.
+    await expect(welcome).toBeFocused()
+    const requests = await inbox.requests()
+    expect(requests).toContain('POST /inbox/inb_3/unread')
+    expect(requests).not.toContain('POST /inbox/inb_3/read')
+  })
+
+  test('offer the mark-unread control only on a notification that has been read, between it and its archive button', async ({ page }) => {
+    await show(page)
+    await open(page)
+
+    // Two of the three notifications are unread: they have no such control.
+    await expect(page.locator('.herms-inbox__unread-button')).toHaveCount(1)
+    const row = page.getByRole('list', { name: 'Notifications' }).getByRole('listitem').filter({ hasText: 'Welcome' })
+    expect(await row.locator('button').evaluateAll((buttons) => buttons.map((button) => button.className))).toEqual([
+      'herms-inbox__item',
+      'herms-inbox__unread-button',
+      'herms-inbox__archive-button',
+    ])
+  })
+
   test('are named in French when asked', async ({ page }) => {
     await show(page, { query: { locale: 'fr' } })
 

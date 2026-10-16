@@ -139,8 +139,8 @@ focus to the bell; moving the focus out of the element closes it too. The styles
 rules for the badge and the unread dot, which are colour alone otherwise; they are checked in an
 emulated high-contrast setup in Chromium and Firefox, not on Windows itself.
 
-The list is a plain list of buttons, as in `@hermesihq/react`, and not an ARIA menu: each row holds two
-controls, the notification and its archive button, and a menu may own only menu items. This was
+The list is a plain list of buttons, as in `@hermesihq/react`, and not an ARIA menu: each row holds several
+controls (the notification, a "mark as unread" button once it has been read, and its archive button), and a menu may own only menu items. This was
 measured with an automated checker (axe-core), which flagged the menu form in the element and finds
 nothing in the list form; it has not been tried with a real screen reader.
 

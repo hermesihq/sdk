@@ -24,6 +24,8 @@ export interface HermsInboxStrings {
   loadMore: string
   loadingMore: string
   archive: string
+  /** The row control that puts a read notification back to unread. Its label is followed by the notification's title. */
+  markUnread: string
   unreadDot: string
 }
 
@@ -40,6 +42,7 @@ const en: HermsInboxStrings = {
   loadMore: 'Load more',
   loadingMore: 'Loading…',
   archive: 'Archive',
+  markUnread: 'Mark as unread',
   unreadDot: 'Unread',
 }
 
@@ -56,6 +59,7 @@ const fr: HermsInboxStrings = {
   loadMore: 'Charger plus',
   loadingMore: 'Chargement…',
   archive: 'Archiver',
+  markUnread: 'Marquer comme non lu',
   unreadDot: 'Non lu',
 }
 

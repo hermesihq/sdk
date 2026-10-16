@@ -733,6 +733,36 @@ export class HermesInboxElement extends BaseElement {
     meta.textContent = relativeTime(item.createdAt, this.locale)
     button.dataset.unread = String(!item.readAt)
     ;(row.lastElementChild as HTMLButtonElement).setAttribute('aria-label', `${strings.archive}: ${item.title}`)
+    this.#syncUnreadButton(row, item, strings)
+  }
+
+  /**
+   * The control that puts a read notification back to unread: in the row while the notification is read, gone while it is
+   * not, always between the notification and its archive button. Rows are reused as the list changes, so it is added and
+   * removed here rather than at creation.
+   */
+  #syncUnreadButton(row: HTMLLIElement, item: HermsInboxItem, strings: HermsInboxStrings): void {
+    let unread = row.querySelector<HTMLButtonElement>('.herms-inbox__unread-button')
+    if (!item.readAt) {
+      unread?.remove()
+      return
+    }
+    if (!unread) {
+      unread = document.createElement('button')
+      unread.type = 'button'
+      unread.className = 'herms-inbox__unread-button'
+      unread.append(icon('mail'))
+      unread.addEventListener('click', () => {
+        const notification = row.firstElementChild as HTMLButtonElement
+        const done = this.#runtime?.inbox.markUnread(item.id)
+        this.#guard(done)
+        // The control leaves the row once the notification is unread, and focus would go with it to the page. It goes to
+        // the notification instead, so that someone using the keyboard stays in the list.
+        done?.then(() => notification.focus(), () => undefined)
+      })
+      row.insertBefore(unread, row.lastElementChild)
+    }
+    unread.setAttribute('aria-label', `${strings.markUnread}: ${item.title}`)
   }
 
   // ---- interaction --------------------------------------------------------------------------

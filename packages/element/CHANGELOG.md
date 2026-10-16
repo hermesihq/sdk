@@ -14,6 +14,18 @@ CSS variables listed in the README are the public API.
 Each release lists breaking changes first, because that is the only section that
 decides whether an upgrade is a decision or a formality.
 
+## 0.4.0 (2026-10-16)
+
+### Added
+
+- **A "Mark as unread" control on notifications that have been read**, as in `@hermesihq/react` 0.5.0. A read notification has a
+  second small button in its row, between the notification and its archive button, that puts it back to unread. An unread one has
+  none. Its label names the notification ("Mark as unread: Order shipped", "Marquer comme non lu: ..."); marking unread does not
+  open the notification; focus moves to the notification afterwards; a failure is raised as `hermes-error`, like every other action.
+- If you query the shadow root or restyle the row: the control is `.herms-inbox__unread-button`. It is not one of the exposed
+  parts (the archive button is not either), so `::part` does not reach it; a row now has up to three buttons, not two.
+- Needs a Hermesi server from October 2026 or later (the `/unread` route).
+
 ## 0.3.0 (2026-10-16)
 
 ### Changed

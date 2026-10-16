@@ -157,7 +157,7 @@ async function clientApi(req, res, url, tenant) {
     send(res, 200, { updated })
     return true
   }
-  const one = route.match(/^\/inbox\/([^/]+)(?:\/(read|archive))?$/)
+  const one = route.match(/^\/inbox\/([^/]+)(?:\/(read|unread|archive))?$/)
   if (one) {
     const [, id, action] = one
     const index = tenant.items.findIndex((i) => i.id === decodeURIComponent(id))
@@ -168,6 +168,13 @@ async function clientApi(req, res, url, tenant) {
       pushEvent(tenant, 'counts.changed', counts(tenant))
       // The incident: the read call answered with the read-all call's shape.
       send(res, 200, tenant.faultyRead ? { updated: 0 } : item)
+      return true
+    }
+    if (req.method === 'POST' && action === 'unread') {
+      // As the real server does: the item goes back to unread, and `seen_at` is left as it was.
+      item.read_at = null
+      pushEvent(tenant, 'counts.changed', counts(tenant))
+      send(res, 200, item)
       return true
     }
     if (req.method === 'POST' && action === 'archive') {
