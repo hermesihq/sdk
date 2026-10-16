@@ -275,7 +275,8 @@
   color: var(--_herms-muted);
 }
 
-.herms-inbox__archive-button {
+.herms-inbox__archive-button,
+.herms-inbox__unread-button {
   flex: 0 0 auto;
   align-self: center;
   width: 28px;
@@ -293,6 +294,12 @@
 .herms-inbox__archive-button:hover {
   background: var(--_herms-hover);
   color: var(--_herms-danger);
+}
+
+/* Putting a notification back to unread is not destructive, so its hover is the accent and not the danger colour. */
+.herms-inbox__unread-button:hover {
+  background: var(--_herms-hover);
+  color: var(--_herms-accent);
 }
 
 .herms-inbox__state {

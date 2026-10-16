@@ -83,6 +83,15 @@ function ArchiveIcon() {
   )
 }
 
+function MailIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m3 7 9 6 9-6" />
+    </svg>
+  )
+}
+
 function AlertIcon() {
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -105,7 +114,7 @@ function AlertIcon() {
 export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, colorScheme = 'auto', locale, className, onError }: HermsInboxProps) {
   const { client } = useHermsContext()
   const { unread, unseen } = useUnreadCount()
-  const { items, isLoading, isLoadingMore, error, hasMore, loadMore, markRead, markAllRead, archive, refetch } = useInbox()
+  const { items, isLoading, isLoadingMore, error, hasMore, loadMore, markRead, markUnread, markAllRead, archive, refetch } = useInbox()
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([])
@@ -301,6 +310,23 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
                         {item.body && <span className="herms-inbox__item-body">{item.body}</span>}
                         <span className="herms-inbox__item-meta">{relativeTime(item.createdAt, locale ?? 'en')}</span>
                       </button>
+                      {item.readAt && (
+                        <button
+                          type="button"
+                          className="herms-inbox__unread-button"
+                          aria-label={`${strings.markUnread}: ${item.title}`}
+                          onClick={() => {
+                            const target = itemRefs.current[index]
+                            const done = markUnread(item.id)
+                            guard(done)
+                            // The control leaves the row once the notification is unread, and focus would go with it to the
+                            // page. It goes to the notification instead, so that someone using the keyboard stays in the list.
+                            done.then(() => target?.focus(), () => undefined)
+                          }}
+                        >
+                          <MailIcon />
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="herms-inbox__archive-button"

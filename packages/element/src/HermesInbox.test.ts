@@ -97,6 +97,8 @@ function stubApi(api: Api): Recorded[] {
     if (api.failing?.includes(route)) return json({ error: { type: 'api_error', code: 'internal_error', message: 'no', request_id: 'r', detail: [], doc_url: '' } }, 500)
     if (pathname.endsWith('/inbox/counts')) return json({ unread: api.unread ?? 0, unseen: api.unseen ?? 0 })
     if (pathname.endsWith('/inbox/seen') || pathname.endsWith('/read-all')) return json({ updated: 1 })
+    // Back to unread: the row the server returns has no `read_at`, and keeps the id it was asked about.
+    if (pathname.endsWith('/unread')) return json(wireItem(pathname.split('/').slice(-2)[0]!, { read_at: null }))
     if (pathname.endsWith('/archive') || pathname.endsWith('/read')) return json(wireItem('inb_1', { read_at: new Date().toISOString() }))
     if (api.holdList) await api.holdList
     if (api.listStatus) return new Response(null, { status: api.listStatus })
@@ -302,6 +304,57 @@ describe('activating a notification', () => {
     expect(onItemClick).not.toHaveBeenCalled()
     await waitFor(() => expect(queries(element).queryByRole('button', { name: /^Notification inb_1/ })).toBeNull())
   })
+
+  it('offers to mark a read notification unread, and not an unread one', async () => {
+    const { element } = mount({ items: [wireItem('inb_1'), wireItem('inb_2', { read_at: '2026-09-01T10:00:00Z' })], unread: 1, unseen: 0 })
+    await openPanel(element)
+
+    // Its label names the notification, for the same reason the archive control's does.
+    expect(await queries(element).findByRole('button', { name: 'Mark as unread: Notification inb_2' })).toBeTruthy()
+    expect(queries(element).queryByRole('button', { name: 'Mark as unread: Notification inb_1' })).toBeNull()
+    // Between the notification and its archive button, in that order, for the eye and for the Tab key.
+    const row = (await queries(element).findByRole('button', { name: /^Notification inb_2/ })).closest('li')!
+    expect([...row.querySelectorAll('button')].map((button) => button.className)).toEqual([
+      'herms-inbox__item',
+      'herms-inbox__unread-button',
+      'herms-inbox__archive-button',
+    ])
+  })
+
+  it('marks a notification unread from the row without opening it, and keeps the focus in the list', async () => {
+    const { element, calls } = mount({ items: [wireItem('inb_1'), wireItem('inb_2', { read_at: '2026-09-01T10:00:00Z' })], unread: 1, unseen: 0 })
+    const onItemClick = vi.fn()
+    element.addEventListener('hermes-item-click', onItemClick)
+    await openPanel(element)
+
+    await userEvent.click(await queries(element).findByRole('button', { name: 'Mark as unread: Notification inb_2' }))
+
+    await waitFor(() => expect(calls.some((call) => call.route === 'POST /v1/client/inbox/inb_2/unread')).toBe(true))
+    // Nested controls: clicking one must not also activate the notification, which would mark it read again.
+    expect(onItemClick).not.toHaveBeenCalled()
+    expect(calls.some((call) => call.route.endsWith('/read'))).toBe(false)
+    // Unread again, so the control has nothing left to offer and leaves the row. Focus goes to the notification and not to the page.
+    await waitFor(() => expect(queries(element).queryByRole('button', { name: 'Mark as unread: Notification inb_2' })).toBeNull())
+    await waitFor(() => expect(element.shadowRoot!.activeElement).toBe(queries(element).getByRole('button', { name: /^Notification inb_2/ })))
+  })
+
+  it('reports a failed mark-unread to the host and leaves the notification read', async () => {
+    const { element } = mount({
+      items: [wireItem('inb_2', { read_at: '2026-09-01T10:00:00Z' })],
+      unread: 0,
+      unseen: 0,
+      failing: ['POST /v1/client/inbox/inb_2/unread'],
+    })
+    const errors: unknown[] = []
+    element.addEventListener('hermes-error', (event) => errors.push((event as CustomEvent).detail.error))
+    await openPanel(element)
+
+    await userEvent.click(await queries(element).findByRole('button', { name: 'Mark as unread: Notification inb_2' }))
+
+    await waitFor(() => expect(errors).toHaveLength(1))
+    expect((errors[0] as { code?: string }).code).toBe('internal_error')
+    expect(queries(element).getByRole('button', { name: 'Mark as unread: Notification inb_2' })).toBeTruthy()
+  })
 })
 
 describe('locale', () => {
@@ -311,6 +364,13 @@ describe('locale', () => {
 
     expect(await queries(element).findByRole('button', { name: 'Tout marquer comme lu' })).toBeTruthy()
     expect(queries(element).getByRole('button', { name: 'Fermer' })).toBeTruthy()
+  })
+
+  it('names the mark-as-unread control in French too', async () => {
+    const { element } = mount({ items: [wireItem('inb_2', { read_at: '2026-09-01T10:00:00Z' })], unread: 0, unseen: 0 }, (el) => el.setAttribute('locale', 'fr'))
+    await openPanel(element)
+
+    expect(await queries(element).findByRole('button', { name: 'Marquer comme non lu: Notification inb_2' })).toBeTruthy()
   })
 
   it('names the bell in French too, count and all', async () => {

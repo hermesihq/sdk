@@ -84,6 +84,8 @@ function mount(api: Api, ui: ReactNode = <HermsInbox />): Recorded[] {
 
     if (pathname.endsWith('/inbox/counts')) return json({ unread: api.unread ?? 0, unseen: api.unseen ?? 0 })
     if (pathname.endsWith('/inbox/seen') || pathname.endsWith('/read-all')) return json({ updated: 1 })
+    // Back to unread: the row the server returns has no `read_at`, and keeps the id it was asked about.
+    if (pathname.endsWith('/unread')) return json(wireItem(pathname.split('/').slice(-2)[0]!, { read_at: null }))
     if (pathname.endsWith('/archive') || pathname.endsWith('/read')) return json(wireItem('inb_1', { read_at: new Date().toISOString() }))
     if (api.listStatus) return new Response(null, { status: api.listStatus })
     return json({ data: api.items ?? [], has_more: (api.nextCursor ?? null) !== null, next_cursor: api.nextCursor ?? null })
@@ -307,6 +309,53 @@ describe('activating a notification', () => {
     expect(onItemClick).not.toHaveBeenCalled()
     await waitFor(() => expect(screen.queryByRole('button', { name: /^Notification inb_1/ })).toBeNull())
   })
+
+  it('offers to mark a read notification unread, and not an unread one', async () => {
+    mount({ items: [wireItem('inb_1'), wireItem('inb_2', { read_at: '2026-09-01T10:00:00Z' })], unread: 1, unseen: 0 })
+    await openPanel()
+
+    // Its label names the notification, for the same reason the archive control's does.
+    expect(await screen.findByRole('button', { name: 'Mark as unread: Notification inb_2' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Mark as unread: Notification inb_1' })).toBeNull()
+    // Between the notification and its archive button, in that order, for the eye and for the Tab key.
+    const row = (await screen.findByRole('button', { name: /^Notification inb_2/ })).closest('li')!
+    expect([...row.querySelectorAll('button')].map((button) => button.className)).toEqual([
+      'herms-inbox__item',
+      'herms-inbox__unread-button',
+      'herms-inbox__archive-button',
+    ])
+  })
+
+  it('marks a notification unread from the row without opening it, and keeps the focus in the list', async () => {
+    const onItemClick = vi.fn()
+    const calls = mount({ items: [wireItem('inb_1'), wireItem('inb_2', { read_at: '2026-09-01T10:00:00Z' })], unread: 1, unseen: 0 }, <HermsInbox onItemClick={onItemClick} />)
+    await openPanel()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Mark as unread: Notification inb_2' }))
+
+    await waitFor(() => expect(calls.some((call) => call.route === 'POST /v1/client/inbox/inb_2/unread')).toBe(true))
+    // Nested controls: clicking one must not also activate the notification, which would mark it read again.
+    expect(onItemClick).not.toHaveBeenCalled()
+    expect(calls.some((call) => call.route.endsWith('/read'))).toBe(false)
+    // Unread again, so the control has nothing left to offer and leaves the row. Focus goes to the notification and not to the page.
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Mark as unread: Notification inb_2' })).toBeNull())
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: /^Notification inb_2/ })))
+  })
+
+  it('reports a failed mark-unread to the host and leaves the notification read', async () => {
+    const onError = vi.fn()
+    mount(
+      { items: [wireItem('inb_2', { read_at: '2026-09-01T10:00:00Z' })], unread: 0, unseen: 0, failing: ['POST /v1/client/inbox/inb_2/unread'] },
+      <HermsInbox onError={onError} />,
+    )
+    await openPanel()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Mark as unread: Notification inb_2' }))
+
+    await waitFor(() => expect(onError).toHaveBeenCalledTimes(1))
+    expect((onError.mock.calls[0]![0] as { code?: string }).code).toBe('internal_error')
+    expect(screen.getByRole('button', { name: 'Mark as unread: Notification inb_2' })).toBeTruthy()
+  })
 })
 
 describe('locale', () => {
@@ -320,6 +369,13 @@ describe('locale', () => {
     expect(await screen.findByText('Vous êtes à jour')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Tout marquer comme lu' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Fermer' })).toBeTruthy()
+  })
+
+  it('names the mark-as-unread control in French too', async () => {
+    mount({ items: [wireItem('inb_2', { read_at: '2026-09-01T10:00:00Z' })], unread: 0, unseen: 0 }, <HermsInbox locale="fr" />)
+    await openPanel()
+
+    expect(await screen.findByRole('button', { name: 'Marquer comme non lu: Notification inb_2' })).toBeTruthy()
   })
 
   it('names the bell in French too, count and all', async () => {

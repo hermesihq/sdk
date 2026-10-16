@@ -19,6 +19,22 @@ at least one real integration exists.
 Each release lists breaking changes first, because that is the only section that
 decides whether an upgrade is a decision or a formality.
 
+## 0.5.0 (2026-10-16)
+
+### Added
+
+- **A "Mark as unread" control on notifications that have been read.** A read notification now has a second small button in its
+  row, between the notification and its archive button, that puts it back to unread (the dot returns and the badge counts it
+  again). An unread notification has no such control: opening it is how it is read. Its label names the notification, as the
+  archive button's does ("Mark as unread: Order shipped", "Marquer comme non lu: ..."). Marking unread does not open the
+  notification, and focus moves to the notification afterwards instead of being lost to the page when the control leaves the row.
+  A failure is reported through `onError`, like every other action.
+- If you restyle or query the row: the control is `.herms-inbox__unread-button`, which shares its size and layout with
+  `.herms-inbox__archive-button` in the shipped stylesheet, and a row now has up to three buttons, not two. A rule that picks the
+  archive button as "the last button of the row" is still right; one that counts buttons is not.
+- Needs a Hermesi server from October 2026 or later (the `/unread` route). Against an older one the call fails and `onError`
+  receives it.
+
 ## 0.4.0 (2026-10-16)
 
 ### Added
