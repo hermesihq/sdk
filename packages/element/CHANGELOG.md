@@ -14,6 +14,17 @@ CSS variables listed in the README are the public API.
 Each release lists breaking changes first, because that is the only section that
 decides whether an upgrade is a decision or a formality.
 
+## 0.6.1 (2026-10-19)
+
+### Fixed
+
+- **The `<script>` file of 0.6.0 had no stylesheet in it.** A change to how the file is built left the stylesheet out of the
+  script and wrote it to a separate `dist/hermes-inbox.css` that the script never loads, so a page using the `<script>` tag (or the
+  CDN) got the bell and panel drawn **unstyled**. It still ran, listed the notifications and opened, which is why nothing flagged it.
+  The stylesheet is inside the script again (the file is about 42 KB, 13 KB gzipped: the links and the stylesheet are what it grew
+  by since 0.5.0, which was 39 KB), and `verify:package` now fails if the script lacks its rules and the browser tests measure the panel drawn from the script. The npm module (`import`) was not
+  affected, and neither was `@hermesihq/react`. Anyone on 0.6.0 through the script tag should move to 0.6.1.
+
 ## 0.6.0 (2026-10-19)
 
 ### Added
@@ -29,8 +40,8 @@ decides whether an upgrade is a decision or a formality.
 ### Changed
 
 - Requires `@hermesihq/js` `^0.4.0` (it was `^0.3.0`, which does not reach a 0.4 release).
-- **The `<script>` file is about a quarter smaller** (about 30 KB, 10 KB gzipped, from about 39 KB and 12.5 KB): the stylesheet inside it
-  is minified now, where it used to ship with its comments. Nothing changes in what it draws.
+- ~~The `<script>` file is about a quarter smaller.~~ That was wrong: the file was smaller because its stylesheet was missing
+  (see 0.6.1). With the stylesheet inside it, it is about 42 KB.
 
 ## 0.5.0 (2026-10-16)
 

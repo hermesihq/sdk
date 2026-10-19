@@ -25,7 +25,7 @@ The base URL is the client API, not the host root: every request is this string 
 
 ## Quick start
 
-With no bundler, one `<script>` tag. The file is self-contained (about 30 KB, 10 KB gzipped, with
+With no bundler, one `<script>` tag. The file is self-contained (about 42 KB, 13 KB gzipped, with
 `@hermesihq/js` and the styles inside) and registers `<hermes-inbox>` when it runs. Pin a version
 in production: `@0.5` follows the 0.5 patch releases and stops there, because under `0.x` a minor release may change the API (see the changelog).
 

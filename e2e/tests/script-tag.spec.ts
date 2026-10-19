@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { expect, test } from './fixtures'
-import { ITEMS, bell, notifications, open, panel } from './helpers'
+import { ITEMS, bell, drawn, notifications, open, panel } from './helpers'
 
 /**
  * The `<script>`-tag build, loaded the way its README says: one classic script, no bundler, the
@@ -30,6 +30,23 @@ test('opens, lists the notifications and focuses the first', async ({ page }) =>
   await expect(panel(page)).toBeVisible()
   await expect(notifications(page)).toHaveCount(3)
   await expect(notifications(page).first()).toBeFocused()
+})
+
+test('is drawn with its styling: the stylesheet is inside the script', async ({ page }) => {
+  // The script is one file with no stylesheet next to it. A build that left the CSS out would still run, list and focus, and
+  // draw an unstyled panel (0.6.0 shipped like that), so this measures what is drawn, as the styling tests do for the module.
+  await page.emulateMedia({ colorScheme: 'light' })
+  await load(page)
+  await open(page)
+
+  expect(await drawn(panel(page))).toMatchObject({
+    background: 'rgb(255, 255, 255)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    radius: '10px',
+    boxSizing: 'border-box',
+    width: 380,
+  })
 })
 
 test('exposes defineHermesInbox for another tag name, and registers the default itself', async ({ page }) => {

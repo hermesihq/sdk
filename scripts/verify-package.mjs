@@ -250,6 +250,16 @@ if (missing.length || undeclared.length) process.exit(1)
       if (problems.length) throw new Error(problems.join('\n'))
     })
 
+    // Only a script that declares rules it must contain: the service worker has no stylesheet, and an `ok` for it would say nothing.
+    if (budget.mustContain) check(`${file} carries its own stylesheet`, () => {
+      // A script that is meant to be the whole widget has to contain its CSS. A bundler setting that stops importing the
+      // stylesheet as text leaves it as a separate file the script never loads: the size budget goes down (it looks like a win),
+      // the script still runs, and the panel is drawn with no styling at all. Rules that must be in it are named here.
+      const source = readFileSync(join(installed, file), 'utf8')
+      const missing = budget.mustContain.filter((rule) => !source.includes(rule))
+      if (missing.length) throw new Error(`not in the script: ${missing.join(', ')}`)
+    })
+
     check(`${file} runs as a classic script, on a server, and exposes ${budget.global}`, () => {
       // Executed the way a `<script>` tag would, in a context that has nothing: no document, no
       // `require`, no `import`. A bare import left in the bundle is a ReferenceError here, and a

@@ -1,8 +1,9 @@
 {
   "dist/hermes-inbox.global.js": {
-    "maxBytes": 32000,
-    "maxGzipBytes": 11000,
+    "maxBytes": 44000,
+    "maxGzipBytes": 14000,
     "global": "HermesInbox",
+    "mustContain": [".herms-inbox__panel {", ".herms-inbox__action {", ":host([hidden])"],
     "exports": ["HermesInboxElement", "defineHermesInbox"]
   }
 }
