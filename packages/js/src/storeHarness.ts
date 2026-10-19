@@ -18,6 +18,7 @@ export interface WireItem {
   title: string
   body: string
   action_url: string | null
+  actions?: { label: string; url: string; style?: string }[]
   category: { key: string; name: string } | null
   seen_at: string | null
   read_at: string | null

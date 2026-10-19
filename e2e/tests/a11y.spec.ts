@@ -29,6 +29,27 @@ test('the open panel has no automatically detectable accessibility violations', 
   expect(results.violations.map((v) => `${v.id}: ${v.help} (${v.nodes.length} nodes)`)).toEqual([])
 })
 
+test('the open panel has none either when a notification carries links', async ({ page }) => {
+  await show(page, {
+    items: [
+      {
+        id: 'inb_1',
+        title: 'Order shipped',
+        body: 'Your order is on its way.',
+        actions: [
+          { label: 'Track order', url: 'https://shop.example.cm/orders/1', style: 'primary' },
+          { label: 'Get help', url: 'https://shop.example.cm/help', style: 'default' },
+        ],
+      },
+    ],
+  })
+  await open(page)
+
+  const results = await scan(page)
+
+  expect(results.violations.map((v) => `${v.id}: ${v.help} (${v.nodes.length} nodes)`)).toEqual([])
+})
+
 test('the closed bell has none either', async ({ page }) => {
   await show(page)
 

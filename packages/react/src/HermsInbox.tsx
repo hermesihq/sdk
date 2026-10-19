@@ -368,6 +368,28 @@ export function HermsInbox({ placement = 'bottom-end', onItemClick, theme, color
                           <ArchiveIcon />
                         </button>
                       )}
+                      {item.actions.length > 0 && (
+                        // Links, not buttons: they open an address. Outside the notification's own button (a button may not
+                        // hold another control) and on a line of their own. Opening one reads the notification, as opening
+                        // the notification does.
+                        <div className="herms-inbox__actions" role="group" aria-label={`${strings.actions}: ${item.title}`}>
+                          {item.actions.map((action, at) => (
+                            <a
+                              key={at}
+                              className="herms-inbox__action"
+                              data-style={action.style}
+                              href={action.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={() => {
+                                if (!item.readAt) guard(markRead(item.id))
+                              }}
+                            >
+                              {action.label}
+                            </a>
+                          ))}
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>

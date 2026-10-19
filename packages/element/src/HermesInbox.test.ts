@@ -43,6 +43,7 @@ interface WireItem {
   title: string
   body: string
   action_url: string | null
+  actions?: { label: string; url: string; style?: string }[]
   category: { key: string; name: string } | null
   seen_at: string | null
   read_at: string | null
@@ -80,6 +81,8 @@ interface Api {
   failing?: string[]
   /** Hold the list until this resolves. */
   holdList?: Promise<void>
+  /** Answer a read with the row as it is, but without its links. */
+  echoDropsLinks?: boolean
 }
 
 interface Recorded {
@@ -103,7 +106,13 @@ function stubApi(api: Api): Recorded[] {
     if (pathname.endsWith('/inbox/seen') || pathname.endsWith('/read-all')) return json({ updated: 1 })
     // Back to unread: the row the server returns has no `read_at`, and keeps the id it was asked about.
     if (pathname.endsWith('/unread')) return json(wireItem(pathname.split('/').slice(-2)[0]!, { read_at: null }))
-    if (pathname.endsWith('/archive') || pathname.endsWith('/read')) return json(wireItem('inb_1', { read_at: new Date().toISOString() }))
+    // A read answers with the row it read, links and all, as the server does: a mock that dropped them would hide a list that loses its buttons.
+    if (pathname.endsWith('/read')) {
+      const id = pathname.split('/').slice(-2)[0]!
+      const row = api.items?.find((candidate) => candidate.id === id) ?? wireItem(id)
+      return json({ ...row, ...(api.echoDropsLinks ? { actions: [] } : {}), read_at: new Date().toISOString() })
+    }
+    if (pathname.endsWith('/archive')) return json(wireItem('inb_1', { read_at: new Date().toISOString() }))
     if (api.holdList) await api.holdList
     if (api.listStatus) return new Response(null, { status: api.listStatus })
     const listed = url.searchParams.get('archived') === 'true' ? api.archivedItems : api.items
@@ -374,6 +383,112 @@ describe('activating a notification', () => {
     await waitFor(() => expect(errors).toHaveLength(1))
     expect((errors[0] as { code?: string }).code).toBe('internal_error')
     expect(queries(element).getByRole('button', { name: 'Mark as unread: Notification inb_2' })).toBeTruthy()
+  })
+})
+
+describe('the links under a notification', () => {
+  const LINKS = [
+    { label: 'Track order', url: 'https://shop.example.cm/orders/1', style: 'primary' },
+    { label: 'Get help', url: 'https://shop.example.cm/help', style: 'default' },
+  ]
+  // jsdom has no navigation to follow: a followed link would only log that it cannot.
+  const stopNavigation = (event: Event) => event.preventDefault()
+  beforeEach(() => document.addEventListener('click', stopNavigation))
+  afterEach(() => document.removeEventListener('click', stopNavigation))
+
+  it('draws them as links under the notification, in order, opening in a new tab that cannot reach back', async () => {
+    const { element } = mount({ items: [wireItem('inb_1', { actions: LINKS })], unread: 1, unseen: 1 })
+    await openPanel(element)
+
+    const group = await queries(element).findByRole('group', { name: 'Links: Notification inb_1' })
+    const links = within(group).getAllByRole('link')
+
+    expect(links.map((link) => link.textContent)).toEqual(['Track order', 'Get help'])
+    expect(links.map((link) => link.getAttribute('href'))).toEqual(['https://shop.example.cm/orders/1', 'https://shop.example.cm/help'])
+    expect(links.map((link) => link.getAttribute('data-style'))).toEqual(['primary', 'default'])
+    for (const link of links) {
+      expect(link.getAttribute('target')).toBe('_blank')
+      expect(link.getAttribute('rel')).toBe('noopener noreferrer')
+    }
+  })
+
+  it('draws no group of links for a notification that has none', async () => {
+    const { element } = mount({ items: [wireItem('inb_1')], unread: 1, unseen: 1 })
+    await openPanel(element)
+    await queries(element).findByRole('button', { name: /^Notification inb_1/ })
+
+    expect(queries(element).queryByRole('group', { name: /^Links:/ })).toBeNull()
+  })
+
+  it('keeps the notification, its controls and its links in that order, the links last', async () => {
+    const { element, calls } = mount({ items: [wireItem('inb_1', { actions: LINKS })], unread: 1, unseen: 1 })
+    await openPanel(element)
+    const row = (await queries(element).findByRole('button', { name: /^Notification inb_1/ })).closest('li')!
+    expect(calls.length).toBeGreaterThan(0)
+
+    // The order has to hold when the controls arrive after the links did: a read adds the unread control, and the row is reused.
+    await userEvent.click(queries(element).getByRole('button', { name: /^Notification inb_1/ }))
+    await queries(element).findByRole('button', { name: 'Mark as unread: Notification inb_1' })
+
+    expect([...row.children].map((child) => child.className)).toEqual([
+      'herms-inbox__item',
+      'herms-inbox__unread-button',
+      'herms-inbox__archive-button',
+      'herms-inbox__actions',
+    ])
+  })
+
+  it('reads an unread notification when one of its links is followed', async () => {
+    const { element, calls } = mount({ items: [wireItem('inb_1', { actions: LINKS })], unread: 1, unseen: 1 })
+    await openPanel(element)
+
+    await userEvent.click(await queries(element).findByRole('link', { name: 'Get help' }))
+
+    await waitFor(() => expect(calls.some((call) => call.route === 'POST /v1/client/inbox/inb_1/read')).toBe(true))
+  })
+
+  it('does not ask the server to read a notification that is already read when a link is followed', async () => {
+    const { element, calls } = mount({ items: [wireItem('inb_1', { actions: LINKS, read_at: '2026-09-01T10:00:00Z' })], unread: 0, unseen: 0 })
+    await openPanel(element)
+
+    await userEvent.click(await queries(element).findByRole('link', { name: 'Track order' }))
+
+    expect(calls.some((call) => call.route.endsWith('/read'))).toBe(false)
+  })
+
+  it('removes the group of links when the notification no longer has any', async () => {
+    const { element } = mount({ items: [wireItem('inb_1', { actions: LINKS })], unread: 1, unseen: 1, echoDropsLinks: true })
+    await openPanel(element)
+    await queries(element).findByRole('group', { name: 'Links: Notification inb_1' })
+
+    await userEvent.click(queries(element).getByRole('button', { name: /^Notification inb_1/ }))
+
+    await waitFor(() => expect(queries(element).queryByRole('group', { name: /^Links:/ })).toBeNull())
+  })
+
+  it('keeps the same link elements when the list updates around them', async () => {
+    const { element } = mount({
+      items: [wireItem('inb_1', { actions: LINKS, read_at: '2026-09-01T10:00:00Z' }), wireItem('inb_2')],
+      unread: 1,
+      unseen: 1,
+    })
+    await openPanel(element)
+    const link = await queries(element).findByRole('link', { name: 'Track order' })
+    link.focus()
+
+    // Another notification is read: the store patches its row and the list is drawn again. The links of the first are what they
+    // were, so they are not replaced, which would take the keyboard focus out from under whoever is on one.
+    await userEvent.click(queries(element).getByRole('button', { name: /^Notification inb_2/ }))
+    await queries(element).findByRole('button', { name: 'Mark as unread: Notification inb_2' })
+
+    expect(queries(element).getByRole('link', { name: 'Track order' })).toBe(link)
+  })
+
+  it('names the group of links in French too', async () => {
+    const { element } = mount({ items: [wireItem('inb_1', { actions: LINKS })], unread: 1, unseen: 1 }, (el) => el.setAttribute('locale', 'fr'))
+    await openPanel(element)
+
+    expect(await queries(element).findByRole('group', { name: 'Liens: Notification inb_1' })).toBeTruthy()
   })
 })
 

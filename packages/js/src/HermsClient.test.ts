@@ -302,7 +302,9 @@ describe('URL building', () => {
 
 describe('reads', () => {
   it('turns the wire shape into the camelCase one it documents', async () => {
-    stubFetch(() => json({ data: [WIRE_ITEM], has_more: true, next_cursor: 'cur_next' }))
+    stubFetch(() =>
+      json({ data: [{ ...WIRE_ITEM, actions: [{ label: 'Track order', url: 'https://track.example.cm/4821', style: 'primary' }] }], has_more: true, next_cursor: 'cur_next' }),
+    )
 
     const page = await client().listInbox()
 
@@ -315,6 +317,7 @@ describe('reads', () => {
           title: 'Your order has shipped',
           body: 'Order #4821 is on its way.',
           actionUrl: 'https://track.example.cm/4821',
+          actions: [{ label: 'Track order', url: 'https://track.example.cm/4821', style: 'primary' }],
           category: { key: 'shipping', name: 'Shipping' },
           seenAt: '2026-09-01T10:00:00Z',
           readAt: null,
@@ -349,6 +352,68 @@ describe('reads', () => {
 })
 
 describe('writes', () => {
+  describe('the labelled links of a notification', () => {
+    const TRACK = { label: 'Track order', url: 'https://track.example.cm/4821', style: 'primary' }
+    const HELP = { label: 'Get help', url: 'https://help.example.cm/orders', style: 'default' }
+
+    async function read(actions: unknown) {
+      stubFetch(() => json({ data: [{ ...WIRE_ITEM, actions }], has_more: false, next_cursor: null }))
+      const page = await client().listInbox({})
+      return page.items[0]!.actions
+    }
+
+    it('maps them in order, with their style', async () => {
+      expect(await read([TRACK, HELP])).toEqual([TRACK, HELP])
+    })
+
+    it('is an empty list for a server that predates them, and for one that sends none', async () => {
+      stubFetch(() => json({ data: [WIRE_ITEM], has_more: false, next_cursor: null }))
+      expect((await client().listInbox({})).items[0]!.actions).toEqual([])
+      expect(await read([])).toEqual([])
+      expect(await read(null)).toEqual([])
+      expect(await read('https://x.cm')).toEqual([])
+    })
+
+    it('keeps an address only if it is an absolute http or https one, because each becomes an href', async () => {
+      const unsafe = [
+        { label: 'Run it', url: 'javascript:alert(1)' },
+        { label: 'Data', url: 'data:text/html,<script>alert(1)</script>' },
+        { label: 'File', url: 'file:///etc/passwd' },
+        { label: 'Relative', url: '/orders/4821' },
+        { label: 'Mail', url: 'mailto:a@b.cm' },
+        { label: 'Empty', url: '' },
+      ]
+
+      expect(await read([...unsafe, HELP])).toEqual([HELP])
+    })
+
+    it('accepts a plain http address too, which a development or intranet link is', async () => {
+      const local = { label: 'Local', url: 'http://localhost:8000/orders/1', style: 'default' }
+
+      expect(await read([local])).toEqual([local])
+    })
+
+    it('drops an entry that is not a label and an address, and one whose label is blank', async () => {
+      expect(await read([null, 'nope', 42, { label: 'No address' }, { url: 'https://x.cm' }, { label: '  ', url: 'https://x.cm' }, { label: 3, url: 'https://x.cm' }, TRACK])).toEqual([TRACK])
+    })
+
+    it('reads an unknown style as the default one, and trims what it keeps', async () => {
+      expect(await read([{ label: '  Track  ', url: ' https://x.cm/a ', style: 'danger' }])).toEqual([{ label: 'Track', url: 'https://x.cm/a', style: 'default' }])
+    })
+
+    it('keeps at most three, which is all the server sends', async () => {
+      const many = Array.from({ length: 6 }, (_, n) => ({ label: `Link ${n}`, url: `https://x.cm/${n}` }))
+
+      expect((await read(many)).map((a) => a.label)).toEqual(['Link 0', 'Link 1', 'Link 2'])
+    })
+
+    it('carries them on the row a mutation hands back, so a patched list does not lose its buttons', async () => {
+      stubFetch(() => json({ ...WIRE_ITEM, read_at: '2026-09-01T10:05:00Z', actions: [TRACK, HELP] }))
+
+      expect((await client().markRead(WIRE_ITEM.id)).actions).toEqual([TRACK, HELP])
+    })
+  })
+
   it('marks one item read and hands back the updated row', async () => {
     const calls = stubFetch(() => json({ ...WIRE_ITEM, read_at: '2026-09-01T10:05:00Z' }))
 

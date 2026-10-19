@@ -58,6 +58,8 @@ const ELEMENT_ONLY: Record<string, string> = {
   'says when it opens and closes': 'hermes-open and hermes-close are events of the element; React has no such surface.',
   'reports a list that failed to load': 'React renders the error state and offers a retry (see the panel cases); the element also raises hermes-error.',
   'bubbles, so a page can listen on an ancestor': 'A property of DOM events; React callbacks do not bubble.',
+  'keeps the same link elements when the list updates around them':
+    'React reconciles a row by its key and leaves unchanged elements alone; the element draws the rows by hand and has to decide when to rebuild a group.',
 }
 
 describe('parity with the React component', () => {

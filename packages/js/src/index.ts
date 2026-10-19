@@ -28,6 +28,7 @@ export {
   type HermsClientOptions,
   type HermsErrorDetail,
   type HermsEventListener,
+  type HermsInboxAction,
   type HermsInboxCategory,
   type HermsInboxCounts,
   type HermsInboxItem,
