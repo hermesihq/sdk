@@ -5,6 +5,7 @@ import {
   type HermsClientOptions,
   type HermsEventListener,
   type HermsInboxCounts,
+  type HermsInboxAction,
   type HermsInboxItem,
   type HermsInboxListParams,
   type HermsInboxPage,
@@ -72,6 +73,8 @@ interface WireInboxItem {
   title: string
   body: string
   action_url: string | null
+  /** Absent from a server that predates them; read through `fromWireActions`, never trusted as it arrives. */
+  actions?: unknown
   category: WireInboxCategory | null
   seen_at: string | null
   read_at: string | null
@@ -181,12 +184,44 @@ function unexpectedResponse(status: number, expected: ExpectedShape): HermsApiEr
   })
 }
 
+/** The most links a notification carries; the server refuses more, and this is the second wall for a row it did not write. */
+const MAX_ACTIONS = 3
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const protocol = new URL(value).protocol
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+/**
+ * The labelled links of a notification, as the interface may draw them. Each becomes an `href`, so an entry is kept only if it is
+ * a label and an absolute http(s) address, whatever the server said: a `javascript:` or `data:` link that reached a person's
+ * inbox from a template mistake would otherwise be one click from running. A server that predates them sends no key, and that is
+ * an empty list rather than an error.
+ */
+function fromWireActions(raw: unknown): HermsInboxAction[] {
+  if (!Array.isArray(raw)) return []
+  const actions: HermsInboxAction[] = []
+  for (const entry of raw) {
+    if (!isRecord(entry)) continue
+    const { label, url, style } = entry
+    if (typeof label !== 'string' || !label.trim() || typeof url !== 'string' || !isHttpUrl(url)) continue
+    actions.push({ label: label.trim(), url: url.trim(), style: style === 'primary' ? 'primary' : 'default' })
+    if (actions.length === MAX_ACTIONS) break
+  }
+  return actions
+}
+
 function fromWireItem(wire: WireInboxItem): HermsInboxItem {
   return {
     id: wire.id,
     title: wire.title,
     body: wire.body,
     actionUrl: wire.action_url,
+    actions: fromWireActions(wire.actions),
     category: wire.category ? { key: wire.category.key, name: wire.category.name } : null,
     seenAt: wire.seen_at,
     readAt: wire.read_at,

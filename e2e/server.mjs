@@ -65,6 +65,8 @@ function wireItem(partial, nextId) {
     title: partial.title ?? `Notification ${nextId}`,
     body: partial.body ?? `Body of notification ${nextId}`,
     action_url: partial.action_url ?? null,
+    // The labelled links, as the real server sends them: always a list, empty when there are none.
+    actions: partial.actions ?? [],
     category: partial.category ?? null,
     seen_at: partial.seen_at ?? null,
     read_at: partial.read_at ?? null,

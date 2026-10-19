@@ -19,6 +19,24 @@ least one real integration exists.
 Each release lists breaking changes first, because that is the only section that decides
 whether an upgrade is a decision or a formality.
 
+## 0.4.0 (2026-10-19)
+
+### Added
+
+- **`actions` on a notification**: `HermsInboxItem.actions`, up to three labelled links (`{ label, url, style }`) a notification offers as
+  buttons, in addition to `actionUrl`, which is still where a click on the notification itself goes. `style` is `'default'` or
+  `'primary'` (the emphasised one). Every row the client returns has the list: empty for a notification without links, and for a
+  server that predates them (an older server is not an error). A row an action patches into the store (read, unread) carries them too.
+- **Every `url` in it is safe as an `href`.** An entry is kept only if it has a label and an absolute `http` or `https` address;
+  anything else the server sent (a `javascript:` or `data:` link from a template mistake, a relative path, an empty label) is dropped
+  before it reaches your code, and at most three are kept. The server checks the same things; this is the second wall.
+- Needs a Hermesi server from October 2026 or later to receive any (the `actions` field of the inbox answers).
+
+### Changed
+
+- `HermsInboxItem` has a new required field, `actions`. Code that only reads rows is unaffected; code that builds one by hand (a test,
+  a fixture) has to give it, as `[]`.
+
 ## 0.3.0 (2026-10-16)
 
 ### Added

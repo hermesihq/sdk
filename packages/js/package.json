@@ -1,6 +1,6 @@
 {
   "name": "@hermesihq/js",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Framework-free client for Hermesi: the in-app inbox as an API client and stores, and browser push (Web Push) from the page and the service worker.",
   "type": "module",
   "license": "MIT",

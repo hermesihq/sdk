@@ -31,6 +31,7 @@ interface WireItem {
   title: string
   body: string
   action_url: string | null
+  actions?: { label: string; url: string; style?: string }[]
   category: { key: string; name: string } | null
   seen_at: string | null
   read_at: string | null
@@ -375,6 +376,91 @@ describe('activating a notification', () => {
     await waitFor(() => expect(onError).toHaveBeenCalledTimes(1))
     expect((onError.mock.calls[0]![0] as { code?: string }).code).toBe('internal_error')
     expect(screen.getByRole('button', { name: 'Mark as unread: Notification inb_2' })).toBeTruthy()
+  })
+})
+
+describe('the links under a notification', () => {
+  const LINKS = [
+    { label: 'Track order', url: 'https://shop.example.cm/orders/1', style: 'primary' },
+    { label: 'Get help', url: 'https://shop.example.cm/help', style: 'default' },
+  ]
+  // jsdom has no navigation to follow: a followed link would only log that it cannot.
+  const stopNavigation = (event: Event) => event.preventDefault()
+  beforeEach(() => document.addEventListener('click', stopNavigation))
+  afterEach(() => document.removeEventListener('click', stopNavigation))
+
+  it('draws them as links under the notification, in order, opening in a new tab that cannot reach back', async () => {
+    mount({ items: [wireItem('inb_1', { actions: LINKS })], unread: 1, unseen: 1 })
+    await openPanel()
+
+    const group = await screen.findByRole('group', { name: 'Links: Notification inb_1' })
+    const links = within(group).getAllByRole('link')
+
+    expect(links.map((link) => link.textContent)).toEqual(['Track order', 'Get help'])
+    expect(links.map((link) => link.getAttribute('href'))).toEqual(['https://shop.example.cm/orders/1', 'https://shop.example.cm/help'])
+    expect(links.map((link) => link.getAttribute('data-style'))).toEqual(['primary', 'default'])
+    for (const link of links) {
+      expect(link.getAttribute('target')).toBe('_blank')
+      expect(link.getAttribute('rel')).toBe('noopener noreferrer')
+    }
+  })
+
+  it('draws no group of links for a notification that has none', async () => {
+    mount({ items: [wireItem('inb_1')], unread: 1, unseen: 1 })
+    await openPanel()
+    await screen.findByRole('button', { name: /^Notification inb_1/ })
+
+    expect(screen.queryByRole('group', { name: /^Links:/ })).toBeNull()
+  })
+
+  it('keeps the notification, its controls and its links in that order, the links last', async () => {
+    mount({ items: [wireItem('inb_1', { actions: LINKS, read_at: '2026-09-01T10:00:00Z' })], unread: 0, unseen: 0 })
+    await openPanel()
+
+    const row = (await screen.findByRole('button', { name: /^Notification inb_1/ })).closest('li')!
+
+    expect([...row.children].map((child) => child.className)).toEqual([
+      'herms-inbox__item',
+      'herms-inbox__unread-button',
+      'herms-inbox__archive-button',
+      'herms-inbox__actions',
+    ])
+  })
+
+  it('reads an unread notification when one of its links is followed', async () => {
+    const calls = mount({ items: [wireItem('inb_1', { actions: LINKS })], unread: 1, unseen: 1 })
+    await openPanel()
+
+    await userEvent.click(await screen.findByRole('link', { name: 'Get help' }))
+
+    await waitFor(() => expect(calls.some((call) => call.route === 'POST /v1/client/inbox/inb_1/read')).toBe(true))
+  })
+
+  it('does not ask the server to read a notification that is already read when a link is followed', async () => {
+    const calls = mount({ items: [wireItem('inb_1', { actions: LINKS, read_at: '2026-09-01T10:00:00Z' })], unread: 0, unseen: 0 })
+    await openPanel()
+
+    await userEvent.click(await screen.findByRole('link', { name: 'Track order' }))
+
+    expect(calls.some((call) => call.route.endsWith('/read'))).toBe(false)
+  })
+
+  it('removes the group of links when the notification no longer has any', async () => {
+    // The read is answered with a bare row for `inb_1`, which carries no links.
+    mount({ items: [wireItem('inb_1', { actions: LINKS })], unread: 1, unseen: 1 })
+    await openPanel()
+    await screen.findByRole('group', { name: 'Links: Notification inb_1' })
+
+    await userEvent.click(screen.getByRole('button', { name: /^Notification inb_1/ }))
+
+    await waitFor(() => expect(screen.queryByRole('group', { name: /^Links:/ })).toBeNull())
+  })
+
+  it('names the group of links in French too', async () => {
+    mount({ items: [wireItem('inb_1', { actions: LINKS })], unread: 1, unseen: 1 }, <HermsInbox locale="fr" />)
+    await openPanel()
+
+    expect(await screen.findByRole('group', { name: 'Liens: Notification inb_1' })).toBeTruthy()
   })
 })
 

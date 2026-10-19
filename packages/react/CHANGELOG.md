@@ -19,6 +19,22 @@ at least one real integration exists.
 Each release lists breaking changes first, because that is the only section that
 decides whether an upgrade is a decision or a formality.
 
+## 0.7.0 (2026-10-19)
+
+### Added
+
+- **Labelled links under a notification.** A notification that carries `actions` (up to three, from `@hermesihq/js` 0.4) shows them as
+  links on a line of their own under it: the primary one filled, the others outlined. They open in a new tab with
+  `rel="noopener noreferrer"`, and opening one marks the notification read, as opening the notification does. They are in addition to
+  the notification's own link (`actionUrl`, which `onItemClick` and a click still use), and they also show in the archived view. The
+  group is named "Links: <title>" ("Liens: <titre>"), the string is part of the component, and the colours follow your theme
+  variables. A notification without links is drawn exactly as before, and so is one from a server that predates them.
+- **Windows high contrast:** the links keep an outline and the primary one a heavier weight, since its fill is not kept.
+
+### Changed
+
+- Requires `@hermesihq/js` `^0.4.0` (it was `^0.3.0`, which does not reach a 0.4 release).
+
 ## 0.6.0 (2026-10-16)
 
 ### Added

@@ -14,6 +14,24 @@ CSS variables listed in the README are the public API.
 Each release lists breaking changes first, because that is the only section that
 decides whether an upgrade is a decision or a formality.
 
+## 0.6.0 (2026-10-19)
+
+### Added
+
+- **Labelled links under a notification**, as in `@hermesihq/react` 0.7.0. A notification that carries `actions` (up to three) shows
+  them as links on a line of their own under it: the primary one filled, the others outlined. They open in a new tab with
+  `rel="noopener noreferrer"`, and opening one marks the notification read. They are in addition to the notification's own link
+  (`item.actionUrl`, which `hermes-item-click` and a click still use), and they also show in the archived view. A notification without
+  links is drawn exactly as before.
+- If you query the shadow root or restyle the row: a link is `.herms-inbox__action` (with `data-style="default"` or `"primary"`), in a
+  `.herms-inbox__actions` group that is the row's last child. Neither is one of the exposed parts, so `::part` does not reach them.
+
+### Changed
+
+- Requires `@hermesihq/js` `^0.4.0` (it was `^0.3.0`, which does not reach a 0.4 release).
+- **The `<script>` file is about a quarter smaller** (about 30 KB, 10 KB gzipped, from about 39 KB and 12.5 KB): the stylesheet inside it
+  is minified now, where it used to ship with its comments. Nothing changes in what it draws.
+
 ## 0.5.0 (2026-10-16)
 
 ### Added

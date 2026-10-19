@@ -220,8 +220,54 @@
 
 .herms-inbox__list-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: stretch;
   gap: 2px;
+}
+
+/* The labelled links of a notification: a row of their own under it, whatever the width. They are links and not buttons (they open
+   an address), and sit outside the notification's own button because a button may not contain another control. */
+.herms-inbox__actions {
+  flex: 0 0 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 2px 10px 8px;
+}
+
+.herms-inbox__action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid var(--_herms-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--_herms-accent);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.herms-inbox__action:hover {
+  background: var(--_herms-hover);
+}
+
+.herms-inbox__action[data-style='primary'] {
+  border-color: var(--_herms-accent);
+  background: var(--_herms-accent);
+  color: var(--_herms-accent-foreground);
+}
+
+.herms-inbox__action[data-style='primary']:hover {
+  filter: brightness(0.94);
+}
+
+.herms-inbox__action:focus-visible {
+  outline: 2px solid var(--_herms-accent);
+  outline-offset: 2px;
 }
 
 .herms-inbox__item {
@@ -370,5 +416,17 @@
 
   .herms-inbox__item[data-unread='true'] .herms-inbox__item-title::before {
     background: CanvasText;
+  }
+
+  /* A primary link is told apart by its fill, which forced colours removes: it keeps a heavier border and weight instead. */
+  .herms-inbox__action {
+    border: 1px solid LinkText;
+    color: LinkText;
+  }
+
+  .herms-inbox__action[data-style='primary'] {
+    border-width: 2px;
+    font-weight: 700;
+    background: Canvas;
   }
 }

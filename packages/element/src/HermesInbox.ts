@@ -785,6 +785,49 @@ export class HermesInboxElement extends BaseElement {
     button.dataset.unread = String(!item.readAt)
     this.#syncUnreadButton(row, item, strings)
     this.#syncArchiveButton(row, item, strings)
+    this.#syncActions(row, item, strings)
+  }
+
+  /**
+   * The notification's labelled links, on a line of their own under it. Links, not buttons: they open an address, and they sit
+   * outside the notification's own button because a button may not hold another control. Rows are reused as the list changes, so the
+   * group is added, rebuilt and removed here; it is rebuilt only when the links changed, since this runs on every store update and a
+   * link that is replaced under the keyboard loses its focus.
+   */
+  #syncActions(row: HTMLLIElement, item: HermsInboxItem, strings: HermsInboxStrings): void {
+    let group = row.querySelector<HTMLDivElement>('.herms-inbox__actions')
+    if (item.actions.length === 0) {
+      group?.remove()
+      return
+    }
+    if (!group) {
+      group = document.createElement('div')
+      group.className = 'herms-inbox__actions'
+      group.setAttribute('role', 'group')
+      row.append(group)
+    }
+    group.setAttribute('aria-label', `${strings.actions}: ${item.title}`)
+    const key = JSON.stringify(item.actions)
+    if (group.dataset.key === key) return
+    group.dataset.key = key
+    group.replaceChildren(
+      ...item.actions.map((action) => {
+        const link = document.createElement('a')
+        link.className = 'herms-inbox__action'
+        link.dataset.style = action.style
+        link.href = action.url
+        link.target = '_blank'
+        link.rel = 'noopener noreferrer'
+        link.textContent = action.label
+        link.addEventListener('click', () => {
+          // Opening a link reads the notification, as opening the notification does. Whether it is unread is asked when the
+          // link is followed, not when the group was built.
+          const current = this.#runtime?.inbox.getSnapshot().items.find((candidate) => candidate.id === item.id)
+          if (current && !current.readAt) this.#guard(this.#runtime?.inbox.markRead(item.id))
+        })
+        return link
+      }),
+    )
   }
 
   /** Last in the row on the live feed, and not there at all on the archive, which has no way to un-archive. */
@@ -800,7 +843,8 @@ export class HermesInboxElement extends BaseElement {
       archive.className = 'herms-inbox__archive-button'
       archive.append(icon('archive'))
       archive.addEventListener('click', () => this.#guard(this.#runtime?.inbox.archive(item.id)))
-      row.append(archive)
+      // Before the links, which are the row's last child: the archive button belongs on the notification's line.
+      row.insertBefore(archive, row.querySelector('.herms-inbox__actions'))
     }
     archive.setAttribute('aria-label', `${strings.archive}: ${item.title}`)
   }
@@ -829,7 +873,7 @@ export class HermesInboxElement extends BaseElement {
         // the notification instead, so that someone using the keyboard stays in the list.
         done?.then(() => notification.focus(), () => undefined)
       })
-      row.insertBefore(unread, row.querySelector('.herms-inbox__archive-button'))
+      row.insertBefore(unread, row.querySelector('.herms-inbox__archive-button') ?? row.querySelector('.herms-inbox__actions'))
     }
     unread.setAttribute('aria-label', `${strings.markUnread}: ${item.title}`)
   }

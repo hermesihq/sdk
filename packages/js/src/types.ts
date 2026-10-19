@@ -39,11 +39,23 @@ export interface HermsInboxCategory {
   name: string
 }
 
+/** A labelled link a notification offers, to draw as a button. Opening it does not tell Hermesi. */
+export interface HermsInboxAction {
+  label: string
+  /** An absolute `http` or `https` address: anything else the server sent is dropped before it gets here, so it is safe as an `href`. */
+  url: string
+  /** A hint: `primary` is the emphasised button, where the interface has one. */
+  style: 'default' | 'primary'
+}
+
 export interface HermsInboxItem {
   id: string
   title: string
   body: string
+  /** Where a click on the notification itself goes. */
   actionUrl: string | null
+  /** Up to three labelled links, in the order they are drawn. Empty for a notification without any, and for one from a server that predates them. */
+  actions: HermsInboxAction[]
   category: HermsInboxCategory | null
   seenAt: string | null
   readAt: string | null

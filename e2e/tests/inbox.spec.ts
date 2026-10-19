@@ -442,6 +442,88 @@ test.describe('the archived view', () => {
   }
 })
 
+test.describe('the links under a notification', () => {
+  const LINKS = [
+    { label: 'Track order', url: 'https://shop.example.cm/orders/1', style: 'primary' },
+    { label: 'Get help', url: 'https://shop.example.cm/help', style: 'default' },
+  ]
+  const ITEMS_WITH_LINKS = [
+    { id: 'inb_1', title: 'Order shipped', body: 'Your order is on its way.', actions: LINKS },
+    { id: 'inb_2', title: 'Invoice paid', body: 'Thank you.' },
+  ]
+
+  test('are drawn on a line of their own under the notification, inside the panel, with the controls still on its line', async ({ page }) => {
+    await show(page, { items: ITEMS_WITH_LINKS })
+    await open(page)
+
+    const row = page.getByRole('list', { name: 'Notifications' }).getByRole('listitem').filter({ hasText: 'Order shipped' })
+    const boxes = await row.evaluate((element) => {
+      const rect = (selector: string) => element.querySelector(selector)!.getBoundingClientRect()
+      const panel = element.closest('.herms-inbox__panel')!.getBoundingClientRect()
+      const links = [...element.querySelectorAll('.herms-inbox__action')].map((link) => link.getBoundingClientRect())
+      return {
+        item: rect('.herms-inbox__item'),
+        archive: rect('.herms-inbox__archive-button'),
+        group: rect('.herms-inbox__actions'),
+        links,
+        panel,
+      }
+    })
+
+    // The archive button stays on the notification's line, beside it and not beneath the links.
+    expect(boxes.archive.top).toBeLessThan(boxes.item.bottom)
+    // The links start below the notification, and stay inside the panel whatever the width.
+    expect(boxes.group.top).toBeGreaterThanOrEqual(boxes.item.bottom - 1)
+    expect(boxes.links).toHaveLength(2)
+    for (const link of boxes.links) {
+      expect(link.left).toBeGreaterThanOrEqual(boxes.panel.left)
+      expect(link.right).toBeLessThanOrEqual(boxes.panel.right)
+      expect(link.height).toBeGreaterThanOrEqual(24)
+    }
+    // A notification without links has no group at all.
+    await expect(page.locator('.herms-inbox__actions')).toHaveCount(1)
+  })
+
+  test('draw the primary link filled and the other one not', async ({ page }) => {
+    await show(page, { items: ITEMS_WITH_LINKS })
+    await open(page)
+
+    const [primary, normal] = await page.locator('.herms-inbox__action').evaluateAll((links) =>
+      links.map((link) => ({ background: getComputedStyle(link).backgroundColor, color: getComputedStyle(link).color })),
+    )
+
+    expect(primary!.background).not.toBe(normal!.background)
+    expect(primary!.background).not.toBe('rgba(0, 0, 0, 0)')
+    expect(normal!.background).toBe('rgba(0, 0, 0, 0)')
+  })
+
+  test('open in a new tab that cannot reach back, and read the notification', async ({ page, context }) => {
+    await context.route('https://shop.example.cm/**', (route) => route.fulfill({ contentType: 'text/html', body: '<p>the shop</p>' }))
+    const inbox = await show(page, { items: ITEMS_WITH_LINKS })
+    await open(page)
+    await expect(notifications(page).filter({ hasText: 'Order shipped' })).toHaveAttribute('data-unread', 'true')
+
+    const popupPromise = page.waitForEvent('popup')
+    await page.getByRole('link', { name: 'Track order' }).click()
+    const popup = await popupPromise
+
+    await popup.waitForLoadState()
+    expect(popup.url()).toBe('https://shop.example.cm/orders/1')
+    // `rel="noopener"`: the page that opened it is not reachable from it.
+    expect(await popup.evaluate(() => window.opener)).toBeNull()
+    // Opening a link reads the notification, as opening the notification does.
+    await expect.poll(async () => (await inbox.requests()).includes('POST /inbox/inb_1/read')).toBe(true)
+    await expect(notifications(page).filter({ hasText: 'Order shipped' })).toHaveAttribute('data-unread', 'false')
+  })
+
+  test('are named in French when asked', async ({ page }) => {
+    await show(page, { query: { locale: 'fr' }, items: ITEMS_WITH_LINKS })
+    await open(page)
+
+    await expect(page.getByRole('group', { name: 'Liens: Order shipped' })).toBeVisible()
+  })
+})
+
 test.describe('in real time', () => {
   test('opens a stream that authenticates through its URL, and shows what is pushed', async ({ page }) => {
     // `EventSource` cannot send headers, so the credentials travel in the query string. The mock

@@ -70,6 +70,7 @@ export class InboxStore extends StoreBase<InboxState> {
         title: event.data.title,
         body: '',
         actionUrl: null,
+        actions: [],
         category: null,
         seenAt: null,
         readAt: null,

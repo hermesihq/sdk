@@ -354,7 +354,7 @@ describe('live updates', () => {
       listReads += 1
       return listReads === 1
         ? page([wireItem('inb_old')])
-        : page([wireItem('inb_new', { body: 'The authoritative body.' }), wireItem('inb_old')])
+        : page([wireItem('inb_new', { body: 'The authoritative body.', actions: [{ label: 'Track', url: 'https://x.cm/t', style: 'primary' }] }), wireItem('inb_old')])
     })
     const store = new InboxStore(session)
     store.connect()
@@ -366,9 +366,12 @@ describe('live updates', () => {
     // is real but partial (no body, no category, no action url).
     expect(store.getSnapshot().items[0]?.id).toBe('inb_new')
     expect(store.getSnapshot().items[0]?.body).toBe('')
+    // No links either until the full row lands: the frame does not carry them.
+    expect(store.getSnapshot().items[0]?.actions).toEqual([])
 
     // Then reconciled against a fresh first page, in place: no spinner, no reordering.
     await until(store, (s) => s.items[0]?.body === 'The authoritative body.')
+    expect(store.getSnapshot().items[0]?.actions).toEqual([{ label: 'Track', url: 'https://x.cm/t', style: 'primary' }])
     expect(ids(store)).toEqual(['inb_new', 'inb_old'])
     expect(store.getSnapshot().isLoading).toBe(false)
   })

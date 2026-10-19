@@ -87,6 +87,10 @@ Three objects, and each does one job:
 | `InboxStore` | `{ items, isLoading, isLoadingMore, error, hasMore }` | `loadMore()`, `markRead(id)`, `markUnread(id)`, `markAllRead()`, `archive(id)`, `remove(id)`, `refetch()`, `setFilter({ status, category, archived })` |
 | `PreferencesStore` | `{ preferences, isLoading, error }` | `setPreference(update)`, `reload()` |
 
+An inbox row is `HermsInboxItem`: `{ id, title, body, actionUrl, actions, category, seenAt, readAt, createdAt }`. `actionUrl` is where a click on the
+notification goes; `actions` is up to three labelled links, `{ label, url, style }`, to draw as buttons (`[]` when there are none). Every `url` in it
+is an absolute `http` or `https` address, so it is safe as an `href`: anything else the server sent is dropped before it reaches you.
+
 Every store has the same three things, which is what makes one easy to bind to anything:
 
 - `getSnapshot()` returns an immutable object. It is the same object until something in it
