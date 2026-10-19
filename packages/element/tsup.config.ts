@@ -1,22 +1,4 @@
-import { readFile } from 'node:fs/promises'
-import { transform } from 'esbuild'
-import type { Plugin } from 'esbuild'
 import { defineConfig } from 'tsup'
-
-/**
- * The stylesheets as text, minified. Imported with the plain `text` loader they ship byte for byte, comments and all, and the comments
- * in a stylesheet are explanation for whoever maintains it, not for a page that loads the script. Minified here, in the script build
- * only: the module build hands the stylesheet to the consumer's own bundler, which does the same.
- */
-const minifiedCssAsText: Plugin = {
-  name: 'minified-css-as-text',
-  setup(build) {
-    build.onLoad({ filter: /\.css$/ }, async ({ path }) => {
-      const { code } = await transform(await readFile(path, 'utf8'), { loader: 'css', minify: true })
-      return { contents: code, loader: 'text' }
-    })
-  },
-}
 
 /**
  * Two builds of `@hermesihq/element`.
@@ -62,6 +44,9 @@ export default defineConfig([
     minify: true,
     tsconfig: 'tsconfig.build.json',
     noExternal: ['@hermesihq/js'],
-    esbuildPlugins: [minifiedCssAsText],
+    // Needed. Without the `text` loader tsup extracts every imported stylesheet into a `.css` file next to the script and the script
+    // carries none: the element is drawn unstyled, and neither a size budget nor a "does it run" check says so (0.6.0 shipped like
+    // that). `verify:package` now fails if the script lacks its rules.
+    loader: { '.css': 'text' },
   },
 ])
