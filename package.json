@@ -10,6 +10,7 @@
   "workspaces": [
     "packages/js",
     "packages/node",
+    "packages/mcp",
     "packages/react",
     "packages/inbox-ui",
     "packages/element",
@@ -19,7 +20,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "npm run build -w @hermesihq/js && npm run build -w @hermesihq/react && npm run build -w @hermesihq/element && npm run build -w @hermesihq/node",
+    "build": "npm run build -w @hermesihq/js && npm run build -w @hermesihq/react && npm run build -w @hermesihq/element && npm run build -w @hermesihq/node && npm run build -w @hermesihq/mcp",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm test --workspaces --if-present",
     "verify:package": "npm run verify:package --workspaces --if-present",

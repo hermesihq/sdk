@@ -1,0 +1,54 @@
+{
+  "name": "@hermesihq/mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Hermesi: lets an AI agent (Claude Code, Cursor) set up and operate a project's templates, workflows, subscribers and activity through a management key. Runs locally over stdio or hosted over HTTP.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hermesihq/sdk.git",
+    "directory": "packages/mcp"
+  },
+  "homepage": "https://github.com/hermesihq/sdk/tree/main/packages/mcp#readme",
+  "bugs": "https://github.com/hermesihq/sdk/issues",
+  "keywords": [
+    "hermesi",
+    "mcp",
+    "model-context-protocol",
+    "notifications",
+    "agent"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "bin": {
+    "hermesi-mcp": "./dist/stdio.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "prepublishOnly": "npm run typecheck && npm run build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "zod": "^4.6.7"
+  }
+}
