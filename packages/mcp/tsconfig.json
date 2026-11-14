@@ -1,0 +1,7 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": ["src"],
+  // The hosted entry runs on an edge runtime, so the shared source has no node types. `stdio.ts` is the one file that reads
+  // `process`, and it is typechecked with the tests (tsconfig.test.json), which have them.
+  "exclude": ["src/**/*.test.ts", "src/testRelay.ts", "src/stdio.ts"]
+}

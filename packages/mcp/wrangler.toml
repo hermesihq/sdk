@@ -1,0 +1,10 @@
+# The hosted server (docs/design/mcp-and-llms-txt.md in the product repository, piece 2).
+# Build first: `npm run build`, then `npx wrangler deploy`.
+# Route it to mcp.hermesi.app in the Cloudflare dashboard (Workers, Settings, Domains & Routes).
+name = "hermesi-mcp"
+main = "dist/worker.js"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+HERMESI_BASE_URL = "https://go.hermesi.app"

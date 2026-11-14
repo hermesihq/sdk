@@ -1,0 +1,8 @@
+{
+  // Tests only, with node types the published source is not allowed to have.
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "types": ["node"] },
+  // `exclude` is inherited from the parent, which excludes exactly these files.
+  "exclude": [],
+  "include": ["src", "vitest.config.ts"]
+}
