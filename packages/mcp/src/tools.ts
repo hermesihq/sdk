@@ -23,8 +23,8 @@ export type Failure = Extract<ApiResult, { ok: false }>
 
 export interface ToolContext {
   api: Api
-  /** The key's own project and environment, asked once. */
-  context(): Promise<{ ok: true; value: KeyContext } | { ok: false; error: Failure }>
+  /** The key's own project and environment, asked once; `fresh` asks again (a setting may have changed since). */
+  context(fresh?: boolean): Promise<{ ok: true; value: KeyContext } | { ok: false; error: Failure }>
 }
 
 export interface ToolDef {
@@ -40,7 +40,8 @@ export function createToolContext(api: Api): ToolContext {
   let cached: Promise<ApiResult> | undefined
   return {
     api,
-    async context() {
+    async context(fresh = false) {
+      if (fresh) cached = undefined
       cached ??= api.request('GET', '/v1/manage/key-context')
       const result = await cached
       if (!result.ok) {
@@ -56,6 +57,7 @@ const enc = encodeURIComponent
 const json = z.record(z.string(), z.unknown())
 const key = z.string().min(1).describe('The key (slug) of the item, for example "order-shipped".')
 const limit = z.number().int().min(1).max(200).optional().describe('How many items to return (default 50).')
+const channel = z.enum(['in_app', 'email', 'push', 'sms', 'whatsapp', 'telegram', 'slack', 'teams', 'discord'])
 const cursor = z.string().optional().describe('The cursor from the previous page, to get the next one.')
 
 type Shape = z.ZodRawShape
@@ -67,6 +69,8 @@ function tool<S extends Shape = Record<string, never>>(def: {
   description: string
   readOnly?: boolean
   destructive?: boolean
+  /** Read the key's context again for this call instead of using the one cached for the session. */
+  fresh?: boolean
   input?: S
   run: (args: Args<S>, c: KeyContext, api: Api) => Promise<ApiResult>
 }): ToolDef {
@@ -77,7 +81,7 @@ function tool<S extends Shape = Record<string, never>>(def: {
     destructive: def.destructive ?? false,
     input: def.input ?? {},
     async run(args, ctx) {
-      const resolved = await ctx.context()
+      const resolved = await ctx.context(def.fresh)
       if (!resolved.ok) return resolved.error
       return def.run(args as Args<S>, resolved.value, ctx.api)
     },
@@ -121,15 +125,15 @@ export const TOOLS: ToolDef[] = [
   }),
   tool({
     name: 'save_template_draft',
-    description: "Replace a template's draft. `draft` is the body the dashboard's template editor saves: variants per channel and locale (docs: Templates).",
-    input: { key, draft: json.describe('The draft body, as the API documents it.') },
+    description: "Replace a template's draft. `draft` is `{ variants: [...] }`: one variant per channel and locale, as the dashboard's template editor saves them (docs: Templates).",
+    input: { key, draft: json.describe('`{ variants: [...] }`') },
     run: (a, c, api) => api.request('PUT', `${P(c)}/templates/${enc(a.key)}/draft`, { body: a.draft }),
   }),
   tool({
     name: 'preview_template',
-    description: 'Render a variant with the code a real send uses, without sending anything. `request` names the channel, locale and sample data.',
+    description: 'Render a variant with the code a real send uses, without sending anything. `request` is `{ channel, locale, payload?, subscriber? }`.',
     readOnly: true,
-    input: { key, request: json },
+    input: { key, request: json.describe('`{ channel, locale, payload?, subscriber? }`') },
     run: (a, c, api) => api.request('POST', `${P(c)}/templates/${enc(a.key)}/preview`, { body: a.request }),
   }),
   tool({
@@ -175,8 +179,8 @@ export const TOOLS: ToolDef[] = [
   }),
   tool({
     name: 'save_workflow_draft',
-    description: "Replace a workflow's draft (its steps). `draft` is the body the dashboard's workflow editor saves.",
-    input: { key, draft: json },
+    description: "Replace a workflow's draft. `draft` is `{ definition, notes?, payload_schema?, strict_payload? }`, where `definition` holds the steps, as the dashboard's workflow editor saves it.",
+    input: { key, draft: json.describe('`{ definition, notes?, payload_schema?, strict_payload? }`') },
     run: (a, c, api) => api.request('PUT', `${P(c)}/workflows/${enc(a.key)}/draft`, { body: a.draft }),
   }),
   tool({
@@ -187,9 +191,19 @@ export const TOOLS: ToolDef[] = [
   }),
   tool({
     name: 'duplicate_workflow',
-    description: 'Copy a workflow under a new key.',
-    input: { key, new_key: z.string().min(1) },
-    run: (a, c, api) => api.request('POST', `${P(c)}/workflows/${enc(a.key)}/duplicate`, { body: { key: a.new_key } }),
+    description: 'Copy a workflow under a new key, name and trigger event.',
+    input: {
+      key,
+      new_key: z.string().min(1),
+      name: z.string().min(1),
+      trigger_event: z.string().min(1).describe("The new workflow's event name."),
+      category_id: z.string().optional(),
+      description: z.string().optional(),
+    },
+    run: (a, c, api) =>
+      api.request('POST', `${P(c)}/workflows/${enc(a.key)}/duplicate`, {
+        body: { key: a.new_key, name: a.name, trigger_event: a.trigger_event, category_id: a.category_id, description: a.description },
+      }),
   }),
   tool({
     name: 'delete_workflow',
@@ -200,15 +214,15 @@ export const TOOLS: ToolDef[] = [
   }),
   tool({
     name: 'export_workflow',
-    description: 'A workflow as one JSON document, to keep in version control.',
+    description: 'A workflow as one JSON document, to keep in version control. Without `version`, the published one.',
     readOnly: true,
-    input: { key },
-    run: (a, c, api) => api.request('GET', `${P(c)}/workflows/${enc(a.key)}/export`),
+    input: { key, version: z.number().int().optional() },
+    run: (a, c, api) => api.request('GET', `${P(c)}/workflows/${enc(a.key)}/export`, { query: { version: a.version } }),
   }),
   tool({
     name: 'import_workflow',
-    description: "Import a workflow document as a draft. It never changes an existing workflow's trigger, name or category.",
-    input: { document: json },
+    description: "Import a workflow document (what export_workflow returned: `{ format, format_version, workflow, version }`) as a draft. It never changes an existing workflow's trigger, name or category.",
+    input: { document: json.describe('The document export_workflow returned.') },
     run: (a, c, api) => api.request('POST', `${P(c)}/workflows/import`, { body: a.document }),
   }),
   tool({
@@ -232,8 +246,21 @@ export const TOOLS: ToolDef[] = [
   tool({
     name: 'create_category',
     description: 'Create a category. People turn categories on and off in their preferences; a critical one reaches them whatever they chose.',
-    input: { key, name: z.string().min(1), critical: z.boolean().optional() },
+    input: { key, name: z.string().min(1), is_critical: z.boolean().optional(), description: z.string().optional(), display_order: z.number().int().optional() },
     run: (a, c, api) => api.request('POST', `${P(c)}/categories`, { body: a }),
+  }),
+  tool({
+    name: 'update_category',
+    description: "Change a category's name, description or position. Whether it is critical cannot be changed afterwards. `category_id` comes from list_categories.",
+    input: { category_id: z.string().min(1), name: z.string().min(1).optional(), description: z.string().optional(), display_order: z.number().int().optional() },
+    run: ({ category_id, ...fields }, c, api) => api.request('PATCH', `${P(c)}/categories/${enc(category_id)}`, { body: fields }),
+  }),
+  tool({
+    name: 'delete_category',
+    description: 'Delete a category. Refused by the API while a workflow uses it. `category_id` comes from list_categories.',
+    destructive: true,
+    input: { category_id: z.string().min(1) },
+    run: (a, c, api) => api.request('DELETE', `${P(c)}/categories/${enc(a.category_id)}`),
   }),
 
   // --- audience ----------------------------------------------------------------------------
@@ -242,7 +269,7 @@ export const TOOLS: ToolDef[] = [
     description: "List the environment's subscribers.",
     readOnly: true,
     input: { limit, cursor, search: z.string().optional() },
-    run: (a, c, api) => api.request('GET', `${E(c)}/subscribers`, { query: { ...page(a), q: a.search } }),
+    run: (a, c, api) => api.request('GET', `${E(c)}/subscribers`, { query: { ...page(a), search: a.search } }),
   }),
   tool({
     name: 'get_subscriber',
@@ -276,23 +303,37 @@ export const TOOLS: ToolDef[] = [
   tool({
     name: 'create_suppression',
     description: 'Stop sending to an address on a channel.',
-    input: { channel: z.string().min(1).describe('For example "email" or "sms".'), identifier: z.string().min(1), details: json.optional() },
+    input: { channel, identifier: z.string().min(1), details: json.optional() },
     run: (a, c, api) => api.request('POST', `${E(c)}/suppressions`, { body: a }),
   }),
 
   // --- activity ----------------------------------------------------------------------------
   tool({
     name: 'get_overview',
-    description: 'Counts and rates for the environment: sent, delivered, failed.',
+    description: 'Counts and rates for the environment: sent, delivered, failed. `days` is the window.',
     readOnly: true,
-    run: (_a, c, api) => api.request('GET', `${E(c)}/overview`),
+    input: { days: z.number().int().min(1).optional() },
+    run: (a, c, api) => api.request('GET', `${E(c)}/overview`, { query: { days: a.days } }),
   }),
   tool({
     name: 'list_messages',
     description: 'Recent messages with their state. Content people were sent is never included.',
     readOnly: true,
-    input: { limit, cursor, status: z.string().optional(), channel: z.string().optional() },
-    run: (a, c, api) => api.request('GET', `${E(c)}/messages`, { query: { ...page(a), status: a.status, channel: a.channel } }),
+    input: {
+      limit,
+      cursor,
+      search: z.string().optional(),
+      status: z.string().optional(),
+      channel: channel.optional(),
+      workflow: z.string().optional().describe('A workflow key.'),
+      category: z.string().optional().describe('A category key.'),
+      from: z.string().optional().describe('ISO date or time, inclusive.'),
+      to: z.string().optional().describe('ISO date or time, exclusive.'),
+    },
+    run: (a, c, api) =>
+      api.request('GET', `${E(c)}/messages`, {
+        query: { ...page(a), search: a.search, status: a.status, channel: a.channel, workflow: a.workflow, category: a.category, from: a.from, to: a.to },
+      }),
   }),
   tool({
     name: 'get_message',
@@ -305,8 +346,8 @@ export const TOOLS: ToolDef[] = [
     name: 'list_events',
     description: 'Recent events the environment received.',
     readOnly: true,
-    input: { limit, cursor },
-    run: (a, c, api) => api.request('GET', `${E(c)}/events`, { query: page(a) }),
+    input: { limit, cursor, search: z.string().optional(), status: z.string().optional(), name: z.string().optional().describe('An event name.'), from: z.string().optional(), to: z.string().optional() },
+    run: (a, c, api) => api.request('GET', `${E(c)}/events`, { query: { ...page(a), search: a.search, status: a.status, name: a.name, from: a.from, to: a.to } }),
   }),
   tool({
     name: 'retry_dead_letter',
@@ -324,7 +365,9 @@ export const TOOLS: ToolDef[] = [
   tool({
     name: 'send_test_event',
     description:
-      'Publish an event, as your backend would, with the configured secret key. Refused when the environment does not simulate sends, unless `allow_real_send` is true: then real messages go to the real recipient.',
+      'Publish an event, as your backend would, with the configured secret key, which must belong to the same environment as the management key. Refused when that environment sends for real, unless the person who runs this server has set HERMESI_ALLOW_REAL_SEND=1 and the call passes `allow_real_send: true`: then real messages go to the real recipient.',
+    destructive: true,
+    fresh: true,
     input: {
       name: z.string().min(1).describe('The event name, for example "order.shipped".'),
       recipient: z.union([z.string().min(1), json]).describe("A subscriber's external id, or an inline recipient."),
@@ -332,13 +375,24 @@ export const TOOLS: ToolDef[] = [
       allow_real_send: z.boolean().optional(),
     },
     run: async (a, c, api) => {
-      if (!c.simulate_sends && a.allow_real_send !== true) {
+      if (api.secretKeyEnvironment !== c.environment) {
+        const held = api.secretKeyEnvironment ? `for ${api.secretKeyEnvironment}` : 'not recognised (expected hm_sk_dev_, hm_sk_staging_ or hm_sk_prod_)'
+        return {
+          ok: false,
+          error: {
+            code: 'secret_key_environment_mismatch',
+            type: 'validation_error',
+            message: `The management key is for the ${c.environment} environment, but the secret key is ${held}. Use keys of the same environment.`,
+          },
+        }
+      }
+      if (!c.simulate_sends && !(a.allow_real_send === true && api.allowRealSend)) {
         return {
           ok: false,
           error: {
             code: 'real_send_not_allowed',
             type: 'validation_error',
-            message: `The ${c.environment} environment sends for real. Call again with allow_real_send: true to send to a real recipient, or use a development environment key.`,
+            message: `The ${c.environment} environment sends for real. This server publishes to it only when its operator has set HERMESI_ALLOW_REAL_SEND=1 and the call passes allow_real_send: true. The agent cannot enable that: use a development environment, or turn Simulate sends on in the dashboard.`,
           },
         }
       }

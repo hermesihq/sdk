@@ -10,7 +10,7 @@ const EXPECTED_TOOLS = [
   'list_templates', 'get_template', 'create_template', 'save_template_draft', 'preview_template', 'publish_template', 'delete_template',
   'list_workflows', 'get_workflow', 'create_workflow', 'save_workflow_draft', 'publish_workflow', 'duplicate_workflow', 'delete_workflow',
   'export_workflow', 'import_workflow', 'dry_run_workflow',
-  'list_categories', 'create_category',
+  'list_categories', 'create_category', 'update_category', 'delete_category',
   'list_subscribers', 'get_subscriber', 'create_subscriber', 'list_suppressions', 'create_suppression',
   'get_overview', 'list_messages', 'get_message', 'list_events', 'retry_dead_letter', 'resend_message',
 ] // prettier-ignore
@@ -18,8 +18,8 @@ const EXPECTED_TOOLS = [
 let relay: TestRelay
 let client: Client
 
-async function connect(options: { secretKey?: string; baseUrlSuffix?: string } = {}): Promise<Client> {
-  const api = createApi({ baseUrl: relay.url + (options.baseUrlSuffix ?? ''), apiKey: 'hm_mk_dev_test', secretKey: options.secretKey })
+async function connect(options: { secretKey?: string; baseUrlSuffix?: string; allowRealSend?: boolean } = {}): Promise<Client> {
+  const api = createApi({ baseUrl: relay.url + (options.baseUrlSuffix ?? ''), apiKey: 'hm_mk_dev_test', secretKey: options.secretKey, allowRealSend: options.allowRealSend })
   const server = createHermesiServer(api)
   const [serverSide, clientSide] = InMemoryTransport.createLinkedPair()
   await server.connect(serverSide)
@@ -207,18 +207,87 @@ describe('send_test_event', () => {
     await withSecret.close()
   })
 
-  it('refuses an environment that sends for real unless the call says so', async () => {
-    relay.respond((r) => (r.url === '/v1/manage/key-context' ? { body: { ...KEY_CONTEXT, environment: 'production', simulate_sends: false } } : undefined))
-    const withSecret = await connect({ secretKey: 'hm_sk_prod_test' })
+  const PROD_CONTEXT = { ...KEY_CONTEXT, environment: 'production', simulate_sends: false }
 
-    const refused = await withSecret.callTool({ name: 'send_test_event', arguments: { name: 'order.shipped', recipient: 'u1' } })
-    expect(refused.isError).toBe(true)
-    expect(text(refused)).toContain('real_send_not_allowed')
+  it('refuses an environment that sends for real, whatever the agent passes, unless the operator allowed it', async () => {
+    relay.respond((r) => (r.url === '/v1/manage/key-context' ? { body: PROD_CONTEXT } : undefined))
+    const cautious = await connect({ secretKey: 'hm_sk_prod_test' })
+
+    const plain = await cautious.callTool({ name: 'send_test_event', arguments: { name: 'order.shipped', recipient: 'u1' } })
+    const smuggled = await cautious.callTool({ name: 'send_test_event', arguments: { name: 'order.shipped', recipient: 'u1', allow_real_send: true } })
+
+    expect(plain.isError).toBe(true)
+    expect(smuggled.isError).toBe(true)
+    expect(text(smuggled)).toContain('real_send_not_allowed')
     expect(relay.requests.some((r) => r.url === '/v1/events')).toBe(false)
+    await cautious.close()
 
-    const allowed = await withSecret.callTool({ name: 'send_test_event', arguments: { name: 'order.shipped', recipient: 'u1', allow_real_send: true } })
+    const operatorAllowed = await connect({ secretKey: 'hm_sk_prod_test', allowRealSend: true })
+    const withoutArg = await operatorAllowed.callTool({ name: 'send_test_event', arguments: { name: 'order.shipped', recipient: 'u1' } })
+    expect(withoutArg.isError).toBe(true)
+    const allowed = await operatorAllowed.callTool({ name: 'send_test_event', arguments: { name: 'order.shipped', recipient: 'u1', allow_real_send: true } })
     expect(allowed.isError).toBeFalsy()
-    expect(relay.requests.some((r) => r.url === '/v1/events')).toBe(true)
+    expect(relay.requests.filter((r) => r.url === '/v1/events')).toHaveLength(1)
+    await operatorAllowed.close()
+  })
+
+  it('reads the environment again for each test event, so a setting changed in the dashboard is seen', async () => {
+    let simulate = true
+    relay.respond((r) => (r.url === '/v1/manage/key-context' ? { body: { ...KEY_CONTEXT, simulate_sends: simulate } } : undefined))
+    const withSecret = await connect({ secretKey: 'hm_sk_dev_test' })
+
+    const first = await withSecret.callTool({ name: 'send_test_event', arguments: { name: 'a.b', recipient: 'u1' } })
+    simulate = false // someone turns Simulate sends off in the dashboard
+    const second = await withSecret.callTool({ name: 'send_test_event', arguments: { name: 'a.b', recipient: 'u1' } })
+
+    expect(first.isError).toBeFalsy()
+    expect(second.isError).toBe(true)
+    expect(text(second)).toContain('real_send_not_allowed')
     await withSecret.close()
+  })
+
+  it('refuses a secret key that belongs to another environment than the management key', async () => {
+    const mismatched = await connect({ secretKey: 'hm_sk_prod_test' }) // the management key is for development
+    const unknownFormat = await connect({ secretKey: 'not-a-hermesi-key' })
+
+    for (const c of [mismatched, unknownFormat]) {
+      const result = await c.callTool({ name: 'send_test_event', arguments: { name: 'a.b', recipient: 'u1' } })
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('secret_key_environment_mismatch')
+      await c.close()
+    }
+    expect(relay.requests.some((r) => r.url === '/v1/events')).toBe(false)
+  })
+
+  it('is marked destructive, so an editor asks before running it', async () => {
+    const withSecret = await connect({ secretKey: 'hm_sk_dev_test' })
+    const tool = (await withSecret.listTools()).tools.find((t) => t.name === 'send_test_event')
+    expect(tool?.annotations?.destructiveHint).toBe(true)
+    await withSecret.close()
+  })
+})
+
+describe("what the agent asks for reaches the API under the API's own names", () => {
+  it('create_category sends is_critical', async () => {
+    await client.callTool({ name: 'create_category', arguments: { key: 'security', name: 'Security', is_critical: true } })
+    expect(relay.requests.find((r) => r.method === 'POST' && r.url.endsWith('/categories'))?.body).toMatchObject({ key: 'security', is_critical: true })
+  })
+
+  it('list_subscribers sends search, and list_messages its filters', async () => {
+    await client.callTool({ name: 'list_subscribers', arguments: { search: 'bob' } })
+    await client.callTool({ name: 'list_messages', arguments: { status: 'failed', channel: 'sms', workflow: 'welcome' } })
+    expect(relay.requests.some((r) => r.url === '/v1/manage/environments/env_1/subscribers?search=bob')).toBe(true)
+    expect(relay.requests.some((r) => r.url === '/v1/manage/environments/env_1/messages?status=failed&channel=sms&workflow=welcome')).toBe(true)
+  })
+
+  it('duplicate_workflow sends the name and trigger event the API requires', async () => {
+    await client.callTool({ name: 'duplicate_workflow', arguments: { key: 'welcome', new_key: 'welcome-2', name: 'Welcome 2', trigger_event: 'user.welcomed2' } })
+    expect(relay.requests.find((r) => r.url.endsWith('/duplicate'))?.body).toEqual({ key: 'welcome-2', name: 'Welcome 2', trigger_event: 'user.welcomed2' })
+  })
+
+  it('create_suppression refuses a channel the API does not have, before calling it', async () => {
+    const result = await client.callTool({ name: 'create_suppression', arguments: { channel: 'mail', identifier: 'a@b.c' } })
+    expect(result.isError).toBe(true)
+    expect(relay.requests.some((r) => r.url.endsWith('/suppressions'))).toBe(false)
   })
 })

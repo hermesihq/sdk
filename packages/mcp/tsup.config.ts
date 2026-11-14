@@ -5,5 +5,5 @@ export default defineConfig([
   // The command people run: no types, a shebang.
   { entry: { stdio: 'src/stdio.ts' }, format: ['esm'], sourcemap: true, target: 'es2022', platform: 'node', banner: { js: '#!/usr/bin/env node' } },
   // The hosted worker: one self-contained file, with the MCP SDK bundled in.
-  { entry: { worker: 'src/worker.ts' }, format: ['esm'], sourcemap: true, target: 'es2022', platform: 'neutral', noExternal: [/.*/] },
+  { entry: { worker: 'src/worker.ts' }, format: ['esm'], sourcemap: false, target: 'es2022', platform: 'neutral', noExternal: [/.*/] },
 ])

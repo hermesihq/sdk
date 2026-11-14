@@ -36,7 +36,8 @@ claude mcp add hermesi --env HERMESI_API_KEY=hm_mk_dev_... -- npx -y @hermesihq/
 |---|---|
 | `HERMESI_API_KEY` | Required. A management key (`hm_mk_...`). |
 | `HERMESI_BASE_URL` | Where Hermesi runs. Default `https://go.hermesi.app`; set it for a self-hosted instance. |
-| `HERMESI_SECRET_KEY` | Optional. A secret key (`hm_sk_...`) of the same environment. Only then is `send_test_event` available. |
+| `HERMESI_SECRET_KEY` | Optional. A secret key (`hm_sk_...`) of the **same environment** as the management key. Only then is `send_test_event` available. |
+| `HERMESI_ALLOW_REAL_SEND` | Optional. `1` lets `send_test_event` publish to an environment that sends for real. Only you can set it; the agent cannot. |
 
 Then ask your agent to run the `setup-project` prompt, or just say what you want: "create an email template and a workflow for
 `order.shipped`, and dry-run it for user_1".
@@ -49,7 +50,7 @@ Then ask your agent to run the `setup-project` prompt, or just say what you want
 |---|---|
 | Templates | `list_templates`, `get_template`, `create_template`, `save_template_draft`, `preview_template`, `publish_template`, `delete_template` |
 | Workflows | `list_workflows`, `get_workflow`, `create_workflow`, `save_workflow_draft`, `publish_workflow`, `duplicate_workflow`, `delete_workflow`, `export_workflow`, `import_workflow`, `dry_run_workflow` |
-| Categories | `list_categories`, `create_category` |
+| Categories | `list_categories`, `create_category`, `update_category`, `delete_category` |
 | Audience | `list_subscribers`, `get_subscriber`, `create_subscriber`, `list_suppressions`, `create_suppression` |
 | Activity | `get_overview`, `list_messages`, `get_message`, `list_events`, `retry_dead_letter`, `resend_message` |
 | Test | `send_test_event` (needs `HERMESI_SECRET_KEY`) |
@@ -62,8 +63,10 @@ Reads are marked read-only and deletes destructive, so an editor can ask before 
 - **Provider credentials.** They would pass through the conversation. The agent tells you to connect the provider in the dashboard.
 - **People, keys and organisations.** A management key cannot reach them, so neither can this server.
 - **Read what people were sent.** Message detail comes back without its content, as for a `viewer`.
-- **Send for real by accident.** `send_test_event` refuses an environment that does not simulate sends unless the call says
-  `allow_real_send: true`.
+- **Send for real by accident.** `send_test_event` reads the environment's **Simulate sends** setting on every call and refuses an
+  environment that sends for real, unless you started the server with `HERMESI_ALLOW_REAL_SEND=1` and the call says
+  `allow_real_send: true`. It also refuses a secret key of another environment than the management key. It is marked destructive, so an
+  editor asks before running it.
 
 ## Hosted
 
@@ -74,6 +77,17 @@ with `npm run build && npx wrangler deploy` (see `wrangler.toml`), then point yo
 ```sh
 claude mcp add --transport http hermesi https://your-worker.example.com/mcp --header "Authorization: Bearer hm_mk_dev_..."
 ```
+
+## Keeping the tools in step with the API
+
+Every tool maps to one API call, and `src/surface.test.ts` checks that each request exists in the API with only the query parameters and body
+fields it reads. The snapshot it compares against is generated from Hermesi's `openapi.json`:
+
+```sh
+node scripts/sync-api-surface.mjs path/to/openapi.json
+```
+
+Run it when the API changes; a test that then fails is a tool to update.
 
 ## For agents that read documentation
 

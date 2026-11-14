@@ -10,6 +10,9 @@ breaking changes first.
 ### Added
 
 - The MCP server, over stdio (`npx @hermesihq/mcp`) and as a stateless HTTP endpoint for Cloudflare Workers (`dist/worker.js`).
-- Thirty tools on a management key: templates, workflows (including export, import and a dry run), categories, subscribers,
-  suppressions and activity; `send_test_event` when a secret key is configured. The `setup-project` prompt.
+- Thirty-three tools on a management key: templates, workflows (including export, import and a dry run), categories, subscribers,
+  suppressions and activity; and `send_test_event` when a secret key is configured. The `setup-project` prompt.
+- `send_test_event` reads the environment's Simulate sends setting on every call, refuses a secret key of another environment than the
+  management key, and publishes to an environment that sends for real only when the operator sets `HERMESI_ALLOW_REAL_SEND=1`.
+- Not built yet: subscriber upsert, a documentation resource, the `add-channel-to-workflow` prompt.
 - Needs `GET /v1/manage/key-context` on the Hermesi side, which is how a key learns its project and environment.

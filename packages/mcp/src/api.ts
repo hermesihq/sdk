@@ -21,6 +21,8 @@ export interface ApiOptions {
   apiKey: string
   /** A secret key (`hm_sk_...`), only for `send_test_event`. */
   secretKey?: string
+  /** Lets `send_test_event` publish to an environment that sends for real. Set by the person who runs the server (`HERMESI_ALLOW_REAL_SEND=1`), never by the agent. */
+  allowRealSend?: boolean
   fetch?: typeof fetch
   timeoutMs?: number
 }
@@ -35,7 +37,17 @@ export interface RequestOptions {
 
 export interface Api {
   readonly hasSecretKey: boolean
+  /** The environment the secret key belongs to, read from its prefix (`hm_sk_dev_` is `development`); undefined when there is no key or it is not recognised. */
+  readonly secretKeyEnvironment: 'development' | 'staging' | 'production' | undefined
+  readonly allowRealSend: boolean
   request(method: string, path: string, options?: RequestOptions): Promise<ApiResult>
+}
+
+const SECRET_KEY_ENVIRONMENTS = { dev: 'development', staging: 'staging', prod: 'production' } as const
+
+function environmentOfSecretKey(key: string | undefined): Api['secretKeyEnvironment'] {
+  const code = /^hm_sk_(dev|staging|prod)_/.exec(key ?? '')?.[1] as keyof typeof SECRET_KEY_ENVIRONMENTS | undefined
+  return code ? SECRET_KEY_ENVIRONMENTS[code] : undefined
 }
 
 export function createApi(options: ApiOptions): Api {
@@ -45,6 +57,8 @@ export function createApi(options: ApiOptions): Api {
 
   return {
     hasSecretKey: Boolean(options.secretKey),
+    secretKeyEnvironment: environmentOfSecretKey(options.secretKey),
+    allowRealSend: options.allowRealSend === true,
     async request(method, path, request = {}) {
       const url = new URL(base + path)
       for (const [name, value] of Object.entries(request.query ?? {})) {

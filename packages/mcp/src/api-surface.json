@@ -1,0 +1,786 @@
+{
+ "POST /v1/events": {
+  "body": [
+   "actor",
+   "delay",
+   "idempotency_key",
+   "name",
+   "override",
+   "payload",
+   "recipient",
+   "send_at",
+   "tenant"
+  ],
+  "headers": [
+   "Idempotency-Key"
+  ],
+  "query": [],
+  "required": [
+   "name",
+   "recipient"
+  ]
+ },
+ "POST /v1/manage/api-keys": {
+  "body": [
+   "environment_id",
+   "name",
+   "organization_id",
+   "scopes",
+   "type"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "environment_id",
+   "name",
+   "organization_id",
+   "type"
+  ]
+ },
+ "POST /v1/manage/auth/invites/{token}/accept": {
+  "body": [
+   "email",
+   "full_name",
+   "password"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "email",
+   "full_name",
+   "password"
+  ]
+ },
+ "POST /v1/manage/auth/login": {
+  "body": [
+   "email",
+   "password"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "email",
+   "password"
+  ]
+ },
+ "POST /v1/manage/auth/login/mfa": {
+  "body": [
+   "code",
+   "mfa_token"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "code",
+   "mfa_token"
+  ]
+ },
+ "POST /v1/manage/auth/mfa/confirm": {
+  "body": [
+   "code"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "code"
+  ]
+ },
+ "POST /v1/manage/auth/mfa/disable": {
+  "body": [
+   "password"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "password"
+  ]
+ },
+ "POST /v1/manage/auth/mfa/enroll": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "POST /v1/manage/auth/mfa/recovery-codes/regenerate": {
+  "body": [
+   "password"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "password"
+  ]
+ },
+ "POST /v1/manage/auth/register": {
+  "body": [
+   "email",
+   "full_name",
+   "organization_name",
+   "password"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "email",
+   "full_name",
+   "organization_name",
+   "password"
+  ]
+ },
+ "GET /v1/manage/channels": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "PATCH /v1/manage/environments/{environment_id}": {
+  "body": [
+   "simulate_sends"
+  ],
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "GET /v1/manage/environments/{environment_id}/api-keys": {
+  "body": null,
+  "headers": [],
+  "query": [
+   "cursor",
+   "limit"
+  ],
+  "required": []
+ },
+ "POST /v1/manage/environments/{environment_id}/api-keys/{key_id}/revoke": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "GET /v1/manage/environments/{environment_id}/events": {
+  "body": null,
+  "headers": [],
+  "query": [
+   "cursor",
+   "from",
+   "limit",
+   "name",
+   "search",
+   "status",
+   "tenant",
+   "to"
+  ],
+  "required": []
+ },
+ "GET /v1/manage/environments/{environment_id}/events/{event_id}": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "GET /v1/manage/environments/{environment_id}/messages": {
+  "body": null,
+  "headers": [],
+  "query": [
+   "category",
+   "channel",
+   "cursor",
+   "from",
+   "limit",
+   "search",
+   "status",
+   "to",
+   "workflow"
+  ],
+  "required": []
+ },
+ "GET /v1/manage/environments/{environment_id}/messages/{message_id}": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "POST /v1/manage/environments/{environment_id}/messages/{message_id}/resend": {
+  "body": null,
+  "headers": [
+   "Idempotency-Key"
+  ],
+  "query": [],
+  "required": []
+ },
+ "POST /v1/manage/environments/{environment_id}/messages/retry-dead-letter": {
+  "body": null,
+  "headers": [],
+  "query": [
+   "category",
+   "channel",
+   "from",
+   "search",
+   "to",
+   "workflow"
+  ],
+  "required": []
+ },
+ "GET /v1/manage/environments/{environment_id}/notifications/{notification_id}": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "GET /v1/manage/environments/{environment_id}/overview": {
+  "body": null,
+  "headers": [],
+  "query": [
+   "days"
+  ],
+  "required": []
+ },
+ "GET /v1/manage/environments/{environment_id}/providers": {
+  "body": null,
+  "headers": [],
+  "query": [
+   "channel",
+   "cursor",
+   "limit"
+  ],
+  "required": []
+ },
+ "POST /v1/manage/environments/{environment_id}/providers": {
+  "body": [
+   "channel",
+   "credentials",
+   "display_name",
+   "enabled",
+   "priority",
+   "provider_key",
+   "rate_limit_per_sec",
+   "settings"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "channel",
+   "credentials",
+   "display_name",
+   "provider_key"
+  ]
+ },
+ "DELETE /v1/manage/environments/{environment_id}/providers/{provider_config_id}": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "PATCH /v1/manage/environments/{environment_id}/providers/{provider_config_id}": {
+  "body": [
+   "credentials",
+   "display_name",
+   "enabled",
+   "priority",
+   "rate_limit_per_sec",
+   "settings"
+  ],
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "POST /v1/manage/environments/{environment_id}/providers/{provider_config_id}/oauth/authorize": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "POST /v1/manage/environments/{environment_id}/providers/{provider_config_id}/test": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "GET /v1/manage/environments/{environment_id}/subscribers": {
+  "body": null,
+  "headers": [],
+  "query": [
+   "cursor",
+   "limit",
+   "search"
+  ],
+  "required": []
+ },
+ "POST /v1/manage/environments/{environment_id}/subscribers": {
+  "body": [
+   "data",
+   "email",
+   "external_id",
+   "first_name",
+   "last_name",
+   "locale",
+   "phone_e164",
+   "timezone"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "external_id"
+  ]
+ },
+ "DELETE /v1/manage/environments/{environment_id}/subscribers/{external_id}": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "GET /v1/manage/environments/{environment_id}/subscribers/{external_id}": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "DELETE /v1/manage/environments/{environment_id}/subscribers/{external_id}/channels": {
+  "body": null,
+  "headers": [],
+  "query": [
+   "channel",
+   "identifier"
+  ],
+  "required": []
+ },
+ "POST /v1/manage/environments/{environment_id}/subscribers/{external_id}/channels": {
+  "body": [
+   "channel",
+   "identifier",
+   "metadata"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "channel",
+   "identifier"
+  ]
+ },
+ "POST /v1/manage/environments/{environment_id}/subscribers/{external_id}/preference-link": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "PATCH /v1/manage/environments/{environment_id}/subscribers/{external_id}/preferences": {
+  "body": [
+   "category_id",
+   "channel",
+   "enabled"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "channel",
+   "enabled"
+  ]
+ },
+ "GET /v1/manage/environments/{environment_id}/suppressions": {
+  "body": null,
+  "headers": [],
+  "query": [
+   "channel",
+   "cursor",
+   "limit",
+   "reason"
+  ],
+  "required": []
+ },
+ "POST /v1/manage/environments/{environment_id}/suppressions": {
+  "body": [
+   "channel",
+   "details",
+   "identifier"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "channel",
+   "identifier"
+  ]
+ },
+ "DELETE /v1/manage/environments/{environment_id}/suppressions/{suppression_id}": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "GET /v1/manage/key-context": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "GET /v1/manage/me": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "GET /v1/manage/organizations": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "GET /v1/manage/organizations/{organization_id}/audit-log": {
+  "body": null,
+  "headers": [],
+  "query": [
+   "action",
+   "cursor",
+   "from",
+   "limit",
+   "target_type",
+   "to"
+  ],
+  "required": []
+ },
+ "GET /v1/manage/organizations/{organization_id}/invites": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "POST /v1/manage/organizations/{organization_id}/invites": {
+  "body": [
+   "email",
+   "role"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "email",
+   "role"
+  ]
+ },
+ "DELETE /v1/manage/organizations/{organization_id}/invites/{invite_id}": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "GET /v1/manage/organizations/{organization_id}/members": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "DELETE /v1/manage/organizations/{organization_id}/members/{membership_id}": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "PATCH /v1/manage/organizations/{organization_id}/members/{membership_id}": {
+  "body": [
+   "role"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "role"
+  ]
+ },
+ "GET /v1/manage/organizations/{organization_id}/projects": {
+  "body": null,
+  "headers": [],
+  "query": [
+   "cursor",
+   "limit"
+  ],
+  "required": []
+ },
+ "POST /v1/manage/organizations/{organization_id}/projects": {
+  "body": [
+   "default_locale",
+   "name",
+   "slug"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "name",
+   "slug"
+  ]
+ },
+ "GET /v1/manage/organizations/{organization_id}/usage": {
+  "body": null,
+  "headers": [],
+  "query": [
+   "months"
+  ],
+  "required": []
+ },
+ "GET /v1/manage/projects/{project_id}": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "PATCH /v1/manage/projects/{project_id}": {
+  "body": [
+   "default_locale",
+   "inbox_retention",
+   "name"
+  ],
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "GET /v1/manage/projects/{project_id}/categories": {
+  "body": null,
+  "headers": [],
+  "query": [
+   "cursor",
+   "limit"
+  ],
+  "required": []
+ },
+ "POST /v1/manage/projects/{project_id}/categories": {
+  "body": [
+   "default_channels",
+   "description",
+   "display_order",
+   "is_critical",
+   "key",
+   "name"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "key",
+   "name"
+  ]
+ },
+ "DELETE /v1/manage/projects/{project_id}/categories/{category_id}": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "PATCH /v1/manage/projects/{project_id}/categories/{category_id}": {
+  "body": [
+   "default_channels",
+   "description",
+   "display_order",
+   "name"
+  ],
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "GET /v1/manage/projects/{project_id}/templates": {
+  "body": null,
+  "headers": [],
+  "query": [
+   "cursor",
+   "limit"
+  ],
+  "required": []
+ },
+ "POST /v1/manage/projects/{project_id}/templates": {
+  "body": [
+   "key",
+   "name"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "key",
+   "name"
+  ]
+ },
+ "DELETE /v1/manage/projects/{project_id}/templates/{key}": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "GET /v1/manage/projects/{project_id}/templates/{key}": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "PUT /v1/manage/projects/{project_id}/templates/{key}/draft": {
+  "body": [
+   "variants"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "variants"
+  ]
+ },
+ "POST /v1/manage/projects/{project_id}/templates/{key}/preview": {
+  "body": [
+   "actor",
+   "channel",
+   "environment",
+   "locale",
+   "payload",
+   "source",
+   "subscriber"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "channel",
+   "locale"
+  ]
+ },
+ "POST /v1/manage/projects/{project_id}/templates/{key}/publish": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "GET /v1/manage/projects/{project_id}/workflows": {
+  "body": null,
+  "headers": [],
+  "query": [
+   "cursor",
+   "limit"
+  ],
+  "required": []
+ },
+ "POST /v1/manage/projects/{project_id}/workflows": {
+  "body": [
+   "category_id",
+   "description",
+   "key",
+   "name",
+   "trigger_event"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "key",
+   "name",
+   "trigger_event"
+  ]
+ },
+ "DELETE /v1/manage/projects/{project_id}/workflows/{key}": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "GET /v1/manage/projects/{project_id}/workflows/{key}": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "PATCH /v1/manage/projects/{project_id}/workflows/{key}": {
+  "body": [
+   "category_id",
+   "description",
+   "name",
+   "status",
+   "trigger_event"
+  ],
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "PUT /v1/manage/projects/{project_id}/workflows/{key}/draft": {
+  "body": [
+   "definition",
+   "notes",
+   "payload_schema",
+   "strict_payload"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "definition"
+  ]
+ },
+ "POST /v1/manage/projects/{project_id}/workflows/{key}/duplicate": {
+  "body": [
+   "category_id",
+   "description",
+   "key",
+   "name",
+   "trigger_event"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "key",
+   "name",
+   "trigger_event"
+  ]
+ },
+ "GET /v1/manage/projects/{project_id}/workflows/{key}/export": {
+  "body": null,
+  "headers": [],
+  "query": [
+   "version"
+  ],
+  "required": []
+ },
+ "POST /v1/manage/projects/{project_id}/workflows/{key}/publish": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "POST /v1/manage/projects/{project_id}/workflows/{key}/test": {
+  "body": [
+   "actor",
+   "environment_id",
+   "payload",
+   "subscriber_id",
+   "version"
+  ],
+  "headers": [],
+  "query": [],
+  "required": [
+   "environment_id",
+   "subscriber_id"
+  ]
+ },
+ "GET /v1/manage/projects/{project_id}/workflows/{key}/versions/{version}": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "POST /v1/manage/projects/{project_id}/workflows/import": {
+  "body": [
+   "format",
+   "format_version",
+   "version",
+   "workflow"
+  ],
+  "headers": [],
+  "query": [
+   "key"
+  ],
+  "required": [
+   "format",
+   "format_version",
+   "version",
+   "workflow"
+  ]
+ },
+ "GET /v1/manage/providers/catalogue": {
+  "body": null,
+  "headers": [],
+  "query": [],
+  "required": []
+ },
+ "GET /v1/manage/providers/oauth/callback": {
+  "body": null,
+  "headers": [],
+  "query": [
+   "code",
+   "error",
+   "state"
+  ],
+  "required": []
+ }
+}
