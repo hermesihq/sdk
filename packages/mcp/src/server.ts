@@ -5,6 +5,15 @@ import { createToolContext, TOOLS, type ToolContext, type ToolDef } from './tool
 
 export const SERVER_VERSION = '0.1.0'
 
+/** What an agent needs to know about this server before it picks a tool; clients show it as the server's instructions. */
+export const INSTRUCTIONS = [
+  'Hermesi sends product notifications (email, SMS, WhatsApp, push, in-app, chat). These tools act on ONE project and ONE environment, the ones the key belongs to: call whoami first.',
+  'Docs for agents: https://docs.hermesi.app/llms.txt (an index of every page, each also as Markdown at its address plus .md).',
+  "Providers (Resend, SES, Twilio, Africa's Talking...) have no tool, on purpose: connecting one means entering credentials, which must not pass through this conversation. The person does it in the dashboard, Providers page (docs: https://docs.hermesi.app/integrations.md and one page per provider). A workflow step that uses provider \"auto\" needs at least one provider of its channel to send for real; dry runs and simulated environments need none.",
+  'Also not available: people, API keys, organisations, creating projects or environments, and the content people were sent.',
+  'Before a destructive call (a delete, retry_dead_letter, resend_message, send_test_event), say what it will do and to what.',
+].join('\n')
+
 /** How many refused fields to list; the rest are counted, so a huge payload cannot flood the conversation. */
 const MAX_DETAIL = 20
 
@@ -45,7 +54,7 @@ function register(server: McpServer, def: ToolDef, ctx: ToolContext): void {
 }
 
 export function createHermesiServer(api: Api): McpServer {
-  const server = new McpServer({ name: 'hermesi', version: SERVER_VERSION })
+  const server = new McpServer({ name: 'hermesi', version: SERVER_VERSION }, { instructions: INSTRUCTIONS })
   const ctx = createToolContext(api)
   for (const def of TOOLS) {
     if (def.name === 'send_test_event' && !api.hasSecretKey) continue

@@ -118,10 +118,10 @@ describe('calling the API', () => {
   })
 
   it('injects the environment id into a dry run', async () => {
-    await client.callTool({ name: 'dry_run_workflow', arguments: { key: 'welcome', subscriber_id: 'u1' } })
+    await client.callTool({ name: 'dry_run_workflow', arguments: { key: 'welcome', subscriber_id: 'sub_1' } })
 
     const call = relay.requests.find((r) => r.url.endsWith('/test'))
-    expect(call?.body).toMatchObject({ environment_id: 'env_1', subscriber_id: 'u1', payload: {} })
+    expect(call?.body).toMatchObject({ environment_id: 'env_1', subscriber_id: 'sub_1', payload: {} })
   })
 
   it('sends an idempotency key when resending a message', async () => {
@@ -349,5 +349,93 @@ describe('an agent can recover from a rejected request', () => {
     expect(workflow).toContain('schema_version')
     expect(workflow).toContain('"steps"')
     expect(workflow).toContain('"template"')
+  })
+})
+
+describe('dry_run_workflow accepts the id the agent has', () => {
+  const search = (r: { method: string; url: string }) => r.method === 'GET' && r.url.startsWith('/v1/manage/environments/env_1/subscribers?')
+
+  it("takes a subscriber's external id, as create_subscriber does, and resolves it to the internal id the API wants", async () => {
+    relay.respond((r) =>
+      search(r)
+        ? { body: { data: [{ id: 'sub_8', external_id: 'user_10' }, { id: 'sub_9', external_id: 'user_1' }], has_more: false, next_cursor: null } }
+        : undefined,
+    )
+
+    await client.callTool({ name: 'dry_run_workflow', arguments: { key: 'welcome', subscriber_id: 'user_1' } })
+
+    expect(relay.requests.find(search)?.url).toContain('search=user_1')
+    expect(relay.requests.find((r) => r.url.endsWith('/test'))?.body).toMatchObject({ subscriber_id: 'sub_9', environment_id: 'env_1' })
+  })
+
+  it('leaves an internal id alone, with no lookup', async () => {
+    await client.callTool({ name: 'dry_run_workflow', arguments: { key: 'welcome', subscriber_id: 'sub_9' } })
+
+    expect(relay.requests.some(search)).toBe(false)
+    expect(relay.requests.find((r) => r.url.endsWith('/test'))?.body).toMatchObject({ subscriber_id: 'sub_9' })
+  })
+
+  it('says so when no subscriber has that external id (a search hit on a longer id is not a match), and does not run the workflow', async () => {
+    relay.respond((r) => (search(r) ? { body: { data: [{ id: 'sub_8', external_id: 'user_10' }], has_more: false, next_cursor: null } } : undefined))
+
+    const result = await client.callTool({ name: 'dry_run_workflow', arguments: { key: 'welcome', subscriber_id: 'user_1' } })
+
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('subscriber_not_found')
+    expect(text(result)).toContain('create_subscriber')
+    expect(relay.requests.some((r) => r.url.endsWith('/test'))).toBe(false)
+  })
+
+  it('passes on an error from the lookup itself', async () => {
+    relay.respond((r) => (search(r) ? { status: 403, body: { error: { type: 'permission_error', code: 'insufficient_scope', message: 'needs audience:read' } } } : undefined))
+
+    const result = await client.callTool({ name: 'dry_run_workflow', arguments: { key: 'welcome', subscriber_id: 'user_1' } })
+
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('insufficient_scope')
+    expect(relay.requests.some((r) => r.url.endsWith('/test'))).toBe(false)
+  })
+})
+
+describe('what the server tells an agent up front', () => {
+  it('says providers are connected in the dashboard, with where to read how', () => {
+    const instructions = client.getInstructions() ?? ''
+    expect(instructions).toContain('Providers')
+    expect(instructions).toContain('dashboard')
+    expect(instructions).toContain('https://docs.hermesi.app/integrations.md')
+    expect(instructions).toContain('whoami')
+  })
+
+  it('says what the API refuses when a template is deleted, and what to do on a Hermesi that does not check workflows', async () => {
+    const tools = (await client.listTools()).tools
+    const description = tools.find((t) => t.name === 'delete_template')?.description ?? ''
+    expect(description).toContain('template_in_use')
+    expect(description).toContain('already been sent')
+    expect(description).toContain('Hermesi versions before that check')
+    expect(description).toContain('list_workflows')
+  })
+
+  it('passes the 409 template_in_use on, with the workflows it names', async () => {
+    relay.respond((r) =>
+      r.method === 'DELETE'
+        ? {
+            status: 409,
+            body: {
+              error: {
+                type: 'conflict',
+                code: 'template_in_use',
+                message: 'This template is used by workflow shipping. Change the step that names it, or delete the workflow, first.',
+                detail: [{ field: 'key', issue: 'used by workflow shipping' }],
+              },
+            },
+          }
+        : undefined,
+    )
+
+    const result = await client.callTool({ name: 'delete_template', arguments: { key: 'order-shipped' } })
+
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('template_in_use')
+    expect(text(result)).toContain('used by workflow shipping')
   })
 })
