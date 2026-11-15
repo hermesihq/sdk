@@ -127,7 +127,7 @@ export const TOOLS: ToolDef[] = [
     name: 'save_template_draft',
     description:
       "Replace a template's draft. `draft` is `{ \"variants\": [...] }`, one variant per channel and locale; each is `{ \"channel\", \"locale\", \"source\": {...} }` and what `source` holds depends on the channel. " +
-      'Email: {"variants":[{"channel":"email","locale":"en","source":{"subject":"Your order {{ payload.order_id }} has shipped","mjml":"<mjml><mj-body><mj-section><mj-column><mj-text>Hello {{ subscriber.first_name }}</mj-text></mj-column></mj-section></mj-body></mj-mjml>"}}]} (optional in source: preheader, text, reply_to). ' +
+      'Email: {"variants":[{"channel":"email","locale":"en","source":{"subject":"Your order {{ payload.order_id }} has shipped","mjml":"<mjml><mj-body><mj-section><mj-column><mj-text>Hello {{ subscriber.first_name }}</mj-text></mj-column></mj-section></mj-body></mjml>"}}]} (optional in source: preheader, text, reply_to). ' +
       'In-app: source {"title":"Shipped","body":"Order {{ payload.order_id }} is on its way","action_url":"https://..."} (optional: action_url, actions). ' +
       'SMS, Slack, Teams, Discord, Telegram: source {"text":"..."} (optional: actions). Any other field is refused. Placeholders are Jinja ({{ payload.x }}, {{ subscriber.first_name }}). Docs: https://docs.hermesi.app/concepts/templates.md',
     input: { key, draft: json.describe('`{ variants: [...] }`') },
