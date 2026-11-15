@@ -125,7 +125,11 @@ export const TOOLS: ToolDef[] = [
   }),
   tool({
     name: 'save_template_draft',
-    description: "Replace a template's draft. `draft` is `{ variants: [...] }`: one variant per channel and locale, as the dashboard's template editor saves them (docs: Templates).",
+    description:
+      "Replace a template's draft. `draft` is `{ \"variants\": [...] }`, one variant per channel and locale; each is `{ \"channel\", \"locale\", \"source\": {...} }` and what `source` holds depends on the channel. " +
+      'Email: {"variants":[{"channel":"email","locale":"en","source":{"subject":"Your order {{ payload.order_id }} has shipped","mjml":"<mjml><mj-body><mj-section><mj-column><mj-text>Hello {{ subscriber.first_name }}</mj-text></mj-column></mj-section></mj-body></mj-mjml>"}}]} (optional in source: preheader, text, reply_to). ' +
+      'In-app: source {"title":"Shipped","body":"Order {{ payload.order_id }} is on its way","action_url":"https://..."} (optional: action_url, actions). ' +
+      'SMS, Slack, Teams, Discord, Telegram: source {"text":"..."} (optional: actions). Any other field is refused. Placeholders are Jinja ({{ payload.x }}, {{ subscriber.first_name }}). Docs: https://docs.hermesi.app/concepts/templates.md',
     input: { key, draft: json.describe('`{ variants: [...] }`') },
     run: (a, c, api) => api.request('PUT', `${P(c)}/templates/${enc(a.key)}/draft`, { body: a.draft }),
   }),
@@ -179,7 +183,10 @@ export const TOOLS: ToolDef[] = [
   }),
   tool({
     name: 'save_workflow_draft',
-    description: "Replace a workflow's draft. `draft` is `{ definition, notes?, payload_schema?, strict_payload? }`, where `definition` holds the steps, as the dashboard's workflow editor saves it.",
+    description:
+      "Replace a workflow's draft. `draft` is `{ \"definition\": {...}, \"notes\"?, \"payload_schema\"?, \"strict_payload\"? }`. The definition is " +
+      '{"schema_version":1,"steps":[{"key":"email","type":"channel","channel":"email","template":"order-shipped"}]}: every step has a unique `key`; a "channel" step names a `channel` and a `template` (publish the template first: publishing the workflow pins its version); ' +
+      'a "delay" step has a `duration` such as "PT1H"; a "condition" step has an `expression` such as "steps[\'inbox\'].read == false". Docs: https://docs.hermesi.app/concepts/workflows.md',
     input: { key, draft: json.describe('`{ definition, notes?, payload_schema?, strict_payload? }`') },
     run: (a, c, api) => api.request('PUT', `${P(c)}/workflows/${enc(a.key)}/draft`, { body: a.draft }),
   }),

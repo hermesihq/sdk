@@ -10,6 +10,8 @@ export interface ApiError {
   message: string
   requestId?: string
   status?: number
+  /** Per-field problems the API reported: which field, and what is wrong with it. */
+  detail?: { field: string; issue: string }[]
 }
 
 export type ApiResult = { ok: true; status: number; data: unknown } | { ok: false; error: ApiError }
@@ -100,6 +102,12 @@ export function createApi(options: ApiOptions): Api {
       if (response.ok) return { ok: true, status: response.status, data: json }
 
       const envelope = (json as { error?: Record<string, unknown> } | null)?.error
+      const detail = Array.isArray(envelope?.detail)
+        ? (envelope.detail as unknown[]).flatMap((item) => {
+            const entry = item as { field?: unknown; issue?: unknown } | null
+            return entry && typeof entry.issue === 'string' ? [{ field: typeof entry.field === 'string' ? entry.field : '', issue: entry.issue }] : []
+          })
+        : undefined
       return {
         ok: false,
         error: {
@@ -108,6 +116,7 @@ export function createApi(options: ApiOptions): Api {
           message: typeof envelope?.message === 'string' ? envelope.message : `Hermesi answered ${response.status}.`,
           requestId: typeof envelope?.request_id === 'string' ? envelope.request_id : undefined,
           status: response.status,
+          detail: detail && detail.length > 0 ? detail : undefined,
         },
       }
     },
