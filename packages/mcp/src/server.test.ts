@@ -406,11 +406,36 @@ describe('what the server tells an agent up front', () => {
     expect(instructions).toContain('whoami')
   })
 
-  it('does not claim that deleting a template is refused when a workflow uses it', async () => {
+  it('says what the API refuses when a template is deleted, and what to do on a Hermesi that does not check workflows', async () => {
     const tools = (await client.listTools()).tools
     const description = tools.find((t) => t.name === 'delete_template')?.description ?? ''
-    expect(description).not.toContain('Refused by the API when a workflow still uses it')
-    expect(description).toContain('list_workflows')
+    expect(description).toContain('template_in_use')
     expect(description).toContain('already been sent')
+    expect(description).toContain('Hermesi versions before that check')
+    expect(description).toContain('list_workflows')
+  })
+
+  it('passes the 409 template_in_use on, with the workflows it names', async () => {
+    relay.respond((r) =>
+      r.method === 'DELETE'
+        ? {
+            status: 409,
+            body: {
+              error: {
+                type: 'conflict',
+                code: 'template_in_use',
+                message: 'This template is used by workflow shipping. Change the step that names it, or delete the workflow, first.',
+                detail: [{ field: 'key', issue: 'used by workflow shipping' }],
+              },
+            },
+          }
+        : undefined,
+    )
+
+    const result = await client.callTool({ name: 'delete_template', arguments: { key: 'order-shipped' } })
+
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('template_in_use')
+    expect(text(result)).toContain('used by workflow shipping')
   })
 })

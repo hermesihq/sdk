@@ -14,5 +14,6 @@ breaking changes first.
   suppressions and activity; and `send_test_event` when a secret key is configured. The `setup-project` prompt.
 - `send_test_event` reads the environment's Simulate sends setting on every call, refuses a secret key of another environment than the
   management key, and publishes to an environment that sends for real only when the operator sets `HERMESI_ALLOW_REAL_SEND=1`.
+- `delete_template` passes on Hermesi's `409 template_in_use`, which now also covers a template a workflow (active or draft) names. A Hermesi without that check lets the delete through; the tool's description says to look at the workflows first.
 - Not built yet: subscriber upsert, a documentation resource, the `add-channel-to-workflow` prompt.
 - Needs `GET /v1/manage/key-context` on the Hermesi side, which is how a key learns its project and environment.

@@ -149,7 +149,7 @@ export const TOOLS: ToolDef[] = [
   tool({
     name: 'delete_template',
     description:
-      'Delete a template. The API refuses only a template that has already been sent. It does NOT check workflows: a workflow whose step names this template keeps running and then fails at that step. Before deleting, call list_workflows and get_workflow, and tell the person which workflows use it.',
+      'Delete a template. The API answers 409 template_in_use, naming the workflows, when an active workflow or a workflow draft has a step that names it, and when it has already been sent. Hermesi versions before that check let the delete through and the workflow then fails at that step: if you are unsure, call list_workflows and get_workflow first, and tell the person which workflows use it.',
     destructive: true,
     input: { key },
     run: (a, c, api) => api.request('DELETE', `${P(c)}/templates/${enc(a.key)}`),
