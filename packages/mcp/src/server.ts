@@ -5,6 +5,9 @@ import { createToolContext, TOOLS, type ToolContext, type ToolDef } from './tool
 
 export const SERVER_VERSION = '0.1.0'
 
+/** How many refused fields to list; the rest are counted, so a huge payload cannot flood the conversation. */
+const MAX_DETAIL = 20
+
 const HINTS: Record<string, string> = {
   insufficient_scope: 'The key lacks a scope the message names. Issue a management key with it (dashboard, API keys) and use that.',
   authentication_error: 'The key is invalid or revoked. Issue a new one in the dashboard, API keys.',
@@ -15,9 +18,12 @@ export function toToolResult(result: ApiResult): CallToolResult {
   if (result.ok) {
     return { content: [{ type: 'text', text: result.data === null ? 'Done.' : JSON.stringify(result.data, null, 2) }] }
   }
-  const { code, message, requestId, type } = result.error
+  const { code, message, requestId, type, detail } = result.error
   const hint = HINTS[code] ?? HINTS[type]
-  const lines = [`${code}: ${message}`, hint, requestId ? `request_id: ${requestId}` : undefined].filter(Boolean)
+  const shown = (detail ?? []).slice(0, MAX_DETAIL)
+  const fields = shown.map((d) => `- ${d.field ? `${d.field}: ` : ''}${d.issue}`)
+  if ((detail?.length ?? 0) > MAX_DETAIL) fields.push(`- and ${(detail?.length ?? 0) - MAX_DETAIL} more`)
+  const lines = [`${code}: ${message}`, ...fields, hint, requestId ? `request_id: ${requestId}` : undefined].filter(Boolean)
   return { isError: true, content: [{ type: 'text', text: lines.join('\n') }] }
 }
 

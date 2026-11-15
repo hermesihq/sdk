@@ -291,3 +291,63 @@ describe("what the agent asks for reaches the API under the API's own names", ()
     expect(relay.requests.some((r) => r.url.endsWith('/suppressions'))).toBe(false)
   })
 })
+
+describe('an agent can recover from a rejected request', () => {
+  it('shows which field the API refused and why', async () => {
+    relay.respond((r) =>
+      r.method === 'PUT' && r.url.endsWith('/draft')
+        ? {
+            status: 422,
+            body: {
+              error: {
+                type: 'validation_error',
+                code: 'validation_error',
+                message: 'Field required',
+                detail: [
+                  { field: 'variants.0.source', issue: 'Field required' },
+                  { field: 'variants.0.locale', issue: 'String should have at least 2 characters' },
+                ],
+                request_id: 'req_7',
+              },
+            },
+          }
+        : undefined,
+    )
+
+    const result = await client.callTool({ name: 'save_template_draft', arguments: { key: 'a', draft: { variants: [{ channel: 'email' }] } } })
+
+    expect(result.isError).toBe(true)
+    const message = text(result)
+    expect(message).toContain('variants.0.source: Field required')
+    expect(message).toContain('variants.0.locale: String should have at least 2 characters')
+    expect(message).toContain('req_7')
+  })
+
+  it('caps a very long list of refused fields', async () => {
+    const detail = Array.from({ length: 40 }, (_v, i) => ({ field: `f${i}`, issue: 'bad' }))
+    relay.respond((r) => (r.url.includes('/templates') ? { status: 422, body: { error: { type: 'validation_error', code: 'validation_error', message: 'bad', detail } } } : undefined))
+
+    const message = text(await client.callTool({ name: 'create_template', arguments: { key: 'a', name: 'A' } }))
+
+    expect(message).toContain('f0: bad')
+    expect(message).not.toContain('f39: bad')
+    expect(message).toContain('and 20 more')
+  })
+
+  it('tells the agent the exact shape of a template variant and of a workflow definition', async () => {
+    const tools = (await client.listTools()).tools
+    const description = (name: string) => tools.find((t) => t.name === name)?.description ?? ''
+
+    const template = description('save_template_draft')
+    expect(template).toContain('"channel":"email"')
+    expect(template).toContain('"source"')
+    expect(template).toContain('mjml')
+    expect(template).toContain('title')
+    expect(template).toContain('text')
+
+    const workflow = description('save_workflow_draft')
+    expect(workflow).toContain('schema_version')
+    expect(workflow).toContain('"steps"')
+    expect(workflow).toContain('"template"')
+  })
+})
