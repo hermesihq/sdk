@@ -148,7 +148,8 @@ export const TOOLS: ToolDef[] = [
   }),
   tool({
     name: 'delete_template',
-    description: 'Delete a template. Refused by the API when a workflow still uses it.',
+    description:
+      'Delete a template. The API refuses only a template that has already been sent. It does NOT check workflows: a workflow whose step names this template keeps running and then fails at that step. Before deleting, call list_workflows and get_workflow, and tell the person which workflows use it.',
     destructive: true,
     input: { key },
     run: (a, c, api) => api.request('DELETE', `${P(c)}/templates/${enc(a.key)}`),
@@ -214,7 +215,7 @@ export const TOOLS: ToolDef[] = [
   }),
   tool({
     name: 'delete_workflow',
-    description: 'Delete a workflow.',
+    description: 'Delete a workflow. The API refuses a workflow that has already run.',
     destructive: true,
     input: { key },
     run: (a, c, api) => api.request('DELETE', `${P(c)}/workflows/${enc(a.key)}`),

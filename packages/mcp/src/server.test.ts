@@ -396,3 +396,21 @@ describe('dry_run_workflow accepts the id the agent has', () => {
     expect(relay.requests.some((r) => r.url.endsWith('/test'))).toBe(false)
   })
 })
+
+describe('what the server tells an agent up front', () => {
+  it('says providers are connected in the dashboard, with where to read how', () => {
+    const instructions = client.getInstructions() ?? ''
+    expect(instructions).toContain('Providers')
+    expect(instructions).toContain('dashboard')
+    expect(instructions).toContain('https://docs.hermesi.app/integrations.md')
+    expect(instructions).toContain('whoami')
+  })
+
+  it('does not claim that deleting a template is refused when a workflow uses it', async () => {
+    const tools = (await client.listTools()).tools
+    const description = tools.find((t) => t.name === 'delete_template')?.description ?? ''
+    expect(description).not.toContain('Refused by the API when a workflow still uses it')
+    expect(description).toContain('list_workflows')
+    expect(description).toContain('already been sent')
+  })
+})
