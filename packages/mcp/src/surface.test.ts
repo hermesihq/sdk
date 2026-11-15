@@ -44,7 +44,7 @@ const SAMPLES: Record<string, Record<string, unknown>> = {
   delete_workflow: { key: 'k' },
   export_workflow: { key: 'k', version: 2 },
   import_workflow: { document: { format: 'hermesi.workflow', format_version: 1, workflow: {}, version: {} } },
-  dry_run_workflow: { key: 'k', subscriber_id: 'u1', payload: { a: 1 }, version: 1 },
+  dry_run_workflow: { key: 'k', subscriber_id: 'sub_1', payload: { a: 1 }, version: 1 },
   list_categories: {},
   create_category: { key: 'k', name: 'N', is_critical: true, description: 'd', display_order: 1 },
   update_category: { category_id: 'cat_1', name: 'N', description: 'd', display_order: 2 },

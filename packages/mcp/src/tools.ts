@@ -234,13 +234,34 @@ export const TOOLS: ToolDef[] = [
   }),
   tool({
     name: 'dry_run_workflow',
-    description: 'Run a workflow for a subscriber without sending anything, and say what it would do at each step.',
+    description:
+      'Run a workflow for a subscriber without sending anything, and say what it would do at each step. `subscriber_id` is the subscriber\'s external id (the one given to create_subscriber) or its internal id (sub_...); an external id is looked up first.',
     readOnly: true,
     input: { key, subscriber_id: z.string().min(1), payload: json.optional(), version: z.number().int().optional() },
-    run: (a, c, api) =>
-      api.request('POST', `${P(c)}/workflows/${enc(a.key)}/test`, {
-        body: { environment_id: c.environment_id, subscriber_id: a.subscriber_id, payload: a.payload ?? {}, version: a.version },
-      }),
+    run: async (a, c, api) => {
+      let subscriberId = a.subscriber_id
+      if (!subscriberId.startsWith('sub_')) {
+        // The test endpoint wants the internal id; the list is the one place a subscriber's external id is matched to it.
+        const found = await api.request('GET', `${E(c)}/subscribers`, { query: { search: subscriberId, limit: 50 } })
+        if (!found.ok) return found
+        const rows = ((found.data as { data?: { id?: string; external_id?: string }[] } | null)?.data ?? []).filter((row) => row.external_id === subscriberId)
+        const id = rows[0]?.id
+        if (!id) {
+          return {
+            ok: false,
+            error: {
+              code: 'subscriber_not_found',
+              type: 'not_found',
+              message: `No subscriber with the external id "${subscriberId}" in the ${c.environment} environment. Create it with create_subscriber first.`,
+            },
+          }
+        }
+        subscriberId = id
+      }
+      return api.request('POST', `${P(c)}/workflows/${enc(a.key)}/test`, {
+        body: { environment_id: c.environment_id, subscriber_id: subscriberId, payload: a.payload ?? {}, version: a.version },
+      })
+    },
   }),
 
   // --- categories --------------------------------------------------------------------------
