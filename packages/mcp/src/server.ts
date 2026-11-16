@@ -11,6 +11,7 @@ export const INSTRUCTIONS = [
   'Docs for agents: https://docs.hermesi.app/llms.txt (an index of every page, each also as Markdown at its address plus .md).',
   "Providers (Resend, SES, Twilio, Africa's Talking...) have no tool, on purpose: connecting one means entering credentials, which must not pass through this conversation. The person does it in the dashboard, Providers page (docs: https://docs.hermesi.app/integrations.md and one page per provider). A workflow step that uses provider \"auto\" needs at least one provider of its channel to send for real; dry runs and simulated environments need none.",
   'Also not available: people, API keys, organisations, creating projects or environments, and the content people were sent.',
+  'There is no tool to publish an event unless the server was started with HERMESI_SECRET_KEY (an hm_sk_ key of the same environment as the management key): then send_test_event exists. Otherwise events are published by the backend (POST /v1/events) or the SDKs, and whoami says which case this is.',
   'Before a destructive call (a delete, retry_dead_letter, resend_message, send_test_event), say what it will do and to what.',
 ].join('\n')
 
