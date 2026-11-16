@@ -439,3 +439,38 @@ describe('what the server tells an agent up front', () => {
     expect(text(result)).toContain('used by workflow shipping')
   })
 })
+
+describe('hints an agent needed in practice', () => {
+  it('whoami says whether a secret key is configured, and what that means for test events', async () => {
+    const without = JSON.parse(text(await client.callTool({ name: 'whoami', arguments: {} })))
+    expect(without.secret_key_configured).toBe(false)
+    expect(without.send_test_event).toContain('HERMESI_SECRET_KEY')
+
+    const withSecret = await connect({ secretKey: 'hm_sk_dev_test' })
+    const body = JSON.parse(text(await withSecret.callTool({ name: 'whoami', arguments: {} })))
+    expect(body.secret_key_configured).toBe(true)
+    expect(body.send_test_event).toContain('available')
+    expect(JSON.stringify(body)).not.toContain('hm_sk_')
+    await withSecret.close()
+  })
+
+  it('the instructions say events are published by the backend unless a secret key is configured', () => {
+    const instructions = client.getInstructions() ?? ''
+    expect(instructions).toContain('send_test_event')
+    expect(instructions).toContain('HERMESI_SECRET_KEY')
+    expect(instructions).toContain('POST /v1/events')
+  })
+
+  it('publish_workflow says what to do when there is no draft to publish', async () => {
+    const description = (await client.listTools()).tools.find((t) => t.name === 'publish_workflow')?.description ?? ''
+    expect(description).toContain('export_workflow')
+    expect(description).toContain('save_workflow_draft')
+    expect(description).toContain('pin')
+  })
+
+  it('dry_run_workflow says a missing variable is a render error, so the payload must carry the template\'s variables', async () => {
+    const tool = (await client.listTools()).tools.find((t) => t.name === 'dry_run_workflow')
+    expect(tool?.description).toContain('payload')
+    expect(tool?.description).toContain('render_error')
+  })
+})

@@ -99,7 +99,17 @@ export const TOOLS: ToolDef[] = [
     description:
       'Which organisation, project and environment this key belongs to, whether the environment simulates sends, and the scopes the key holds. Call it first: it says what the other tools can do.',
     readOnly: true,
-    run: async (_a, c) => ({ ok: true, status: 200, data: c }),
+    run: async (_a, c, api) => ({
+      ok: true,
+      status: 200,
+      data: {
+        ...c,
+        secret_key_configured: api.hasSecretKey,
+        send_test_event: api.hasSecretKey
+          ? 'available: it publishes with the configured secret key, which must belong to this environment'
+          : 'not available: the server has no secret key. Set HERMESI_SECRET_KEY (an hm_sk_ key of this environment) in its settings and restart the client; until then events are published by your backend (POST /v1/events)',
+      },
+    }),
   }),
 
   // --- templates ---------------------------------------------------------------------------
@@ -193,7 +203,8 @@ export const TOOLS: ToolDef[] = [
   }),
   tool({
     name: 'publish_workflow',
-    description: "Publish the workflow's draft: from then on events that match it run it.",
+    description:
+      "Publish the workflow's draft: from then on events that match it run it, and it pins the template versions that are active at that moment. A workflow that was just published has no draft: to republish it (for example to pin a template's new version), call export_workflow, save_workflow_draft with its `definition`, then publish_workflow.",
     input: { key },
     run: (a, c, api) => api.request('POST', `${P(c)}/workflows/${enc(a.key)}/publish`),
   }),
@@ -236,7 +247,7 @@ export const TOOLS: ToolDef[] = [
   tool({
     name: 'dry_run_workflow',
     description:
-      'Run a workflow for a subscriber without sending anything, and say what it would do at each step. `subscriber_id` is the subscriber\'s external id (the one given to create_subscriber) or its internal id (sub_...); an external id is looked up first.',
+      'Run a workflow for a subscriber without sending anything, and say what it would do at each step. Pass `payload` with the variables its templates use (a template that reads {{ payload.order_id }} needs order_id): a missing one is a render_error on that step, not an empty value. `subscriber_id` is the subscriber\'s external id (the one given to create_subscriber) or its internal id (sub_...); an external id is looked up first.',
     readOnly: true,
     input: { key, subscriber_id: z.string().min(1), payload: json.optional(), version: z.number().int().optional() },
     run: async (a, c, api) => {
